@@ -95,7 +95,7 @@ def main() -> None:
     result_df = result_data_utils.init_result_data(configs.RESULTS_DIR, result_file, configs.RESULT_COLUMS)
 
     print(" [+] Running injections...")
-    run_injections(model_name, dataset_name, microop, model, model_for_fault, data_loader, precision, device, result_df)
+    run_injections(model_name, dataset_name, microop, model, model_for_fault, data_loader, precision, device, result_df, result_file)
 
 
 
