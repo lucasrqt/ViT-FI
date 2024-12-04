@@ -1,8 +1,8 @@
 import pandas as pd
 import os
 
-def get_result_filename(model_name: str, dataset_name: str, precision: str, float_threshold_FM: str) -> str:
-    return f"{model_name}_{dataset_name}_{precision}_{float_threshold_FM}.csv"
+def get_result_filename(model_name: str, dataset_name: str, precision: str, microop: str, float_threshold_FM: str) -> str:
+    return f"{model_name}_{dataset_name}_{precision}_{microop}_{float_threshold_FM}.csv"
 
 def init_result_folder(data_path: str) -> None:
     path = os.path.abspath(data_path)

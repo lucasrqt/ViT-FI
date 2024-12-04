@@ -97,7 +97,7 @@ def main() -> None:
 
     data_loader = model_utils.get_dataset(dataset_name, transforms, batch_size)
     
-    result_file = result_data_utils.get_result_filename(model_name, dataset_name, precision, fault_model_threshold)
+    result_file = result_data_utils.get_result_filename(model_name, dataset_name, precision, microop, fault_model_threshold)
     result_df = result_data_utils.init_result_data(configs.RESULTS_DIR, result_file, configs.RESULT_COLUMS)
 
     print(" [+] Running injections...")
