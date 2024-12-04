@@ -20,7 +20,7 @@ def init_result_data(data_path: str, result_file: str, columns) -> pd.DataFrame:
     return df
 
 def append_row(df, model_name, dataset, precision, microop, groundtruth, prediction_without_fault, prediction_with_fault):
-    df = df.append({
+    df = pd.concat([df,pd.DataFrame({
         "model": model_name,
         "dataset": dataset,
         "precision": precision,
@@ -28,7 +28,7 @@ def append_row(df, model_name, dataset, precision, microop, groundtruth, predict
         "ground_truth": groundtruth,
         "prediction_without_fault": prediction_without_fault,
         "prediction_with_fault": prediction_with_fault
-    }, ignore_index=True)
+    })], ignore_index=True)
     return df
 
 def save_result_data(result_df: pd.DataFrame, data_path: str, result_file: str) -> None:

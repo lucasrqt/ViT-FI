@@ -52,8 +52,9 @@ def run_injections(model_name, dataset_name, microop, model, model_for_fault, da
         labels = labels.to(device)
 
         # microop = statistical_fi.select_microop(model_name)
-        out_wo_fault = statistical_fi.run_inference(model, images, device)
-        out_with_fault = statistical_fi.run_inference(model_for_fault, images, device)
+        out_wo_fault = statistical_fi.run_inference(model, images, device).squeeze()
+        out_with_fault = statistical_fi.run_inference(model_for_fault, images, device).squeeze()
+        labels = labels.squeeze()
 
         print("-" * 80)
         print(f" [+] Image {i} - Microop: {microop}")
