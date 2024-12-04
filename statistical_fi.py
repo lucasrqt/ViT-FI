@@ -168,7 +168,6 @@ def hook_microop(model, microop, fault_model) -> torch.utils.hooks.RemovableHand
     for layer_id, (name, layer) in enumerate(model.named_modules()):
         if layer.__class__.__name__.strip() == microop:
             layers.append((layer, layer_id))
-            print(f" [+] Layer {layer_id}")
 
     random.seed(configs.SEED)
     layer_index = random.randint(0, len(layers) - 1)

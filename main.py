@@ -40,6 +40,9 @@ def run_injections(model_name, dataset_name, microop, model, model_for_fault, da
     model.eval()
     model.to(device)
 
+    model_for_fault.eval()
+    model_for_fault.to(device)
+
     for i, (images, labels) in enumerate(data_loader):
         if precision == configs.FP16:
             images = images.half()
