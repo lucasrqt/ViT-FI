@@ -24,6 +24,9 @@ def get_model(model_name: str, precision) -> torch.nn.Module:
     model = timm.create_model(model_name, pretrained=True)
     if precision == configs.FP16:
         model = model.half()
+
+    model.eval()
+    model.zero_grad(set_to_none=True)
     return model
 
 def get_dataset(dataset_name: str, transforms: tv_transforms.Compose, batch_size: int) -> torch.utils.data.DataLoader:

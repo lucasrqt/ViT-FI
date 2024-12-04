@@ -165,6 +165,7 @@ TMP_CRASH_FILE = "/tmp/vitsreliability_crash_file.txt"
 
 # Seed used for sampling
 TORCH_SEED = 0
+SEED = TORCH_SEED
 
 FP32, FP16, BFLOAT16, INT8 = "fp32", "fp16", "bfloat16", "int8"
 
@@ -218,4 +219,8 @@ RESULT_COLUMS = [
 ]
 
 # fault model related
-FAULT_MODEL_DIR = "fault_models.csv"
+FAULT_MODEL_FILE = "beam_fault_model.csv"
+
+# TopK related
+TOP_1 = 1
+TOP_5 = 5
