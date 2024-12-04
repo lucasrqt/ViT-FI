@@ -159,6 +159,14 @@ COCO_DATASET_DIR = "/home/COCO"
 COCO_DATASET_VAL = f"{COCO_DATASET_DIR}/val2017"
 COCO_DATASET_ANNOTATIONS = f"{COCO_DATASET_DIR}/annotations/instances_val2017.json"
 
+DATASETS_DIRS = {
+    IMAGENET: IMAGENET_DATASET_DIR,
+    COCO: COCO_DATASET_VAL,
+    CIFAR10: CIFAR_DATASET_DIR,
+    CIFAR100: CIFAR_DATASET_DIR,
+    CUSTOM_DATASET: None
+}
+
 
 # File to save last status of the benchmark when log helper not active
 TMP_CRASH_FILE = "/tmp/vitsreliability_crash_file.txt"
