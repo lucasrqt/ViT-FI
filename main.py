@@ -8,6 +8,7 @@ import result_data_utils
 import torch
 from compare_utils import get_top_k_labels
 import random
+import pandas as pd
 
 class LayerHook:
     def __init__(self, microop, fault_model):
@@ -61,7 +62,7 @@ def run_injections(model_name, dataset_name, microop, model, model_for_fault, da
         print(f" [+] Ground truth: {labels} - Prediction without fault: {out_wo_fault} - Prediction with fault: {out_with_fault}")
 
         result_df = result_data_utils.append_row(result_df, model_name, dataset_name, precision, microop, labels, out_wo_fault, out_with_fault)
-        result_data_utils.save_result_data(result_df, configs.RESULTS_DIR, result_file)
+        result_data_utils.save_result_data(pd.DataFrame(result_df), configs.RESULTS_DIR, result_file)
 
 
 def main() -> None:
