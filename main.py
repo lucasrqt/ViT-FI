@@ -56,13 +56,13 @@ def run_injections(model_name, dataset_name, microop, model, model_for_fault, da
         out_wo_fault = statistical_fi.run_inference(model, images, device).squeeze()
         out_with_fault = statistical_fi.run_inference(model_for_fault, images, device).squeeze()
         labels = labels.squeeze()
-
         print("-" * 80)
-        print(f" [+] Image {i} - Microop: {microop}")
-        print(f" [+] Ground truth: {labels} - Prediction without fault: {out_wo_fault} - Prediction with fault: {out_with_fault}")
+        print(f" [+] Batch {i} - Microop: {microop}")
+        for j in range(len(images)):
+            print(f" [+] Image {j} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j]} - Prediction with fault: {out_with_fault[j]}")
 
-        result_df = result_data_utils.append_row(result_df, model_name, dataset_name, precision, microop, labels, out_wo_fault, out_with_fault)
-        result_data_utils.save_result_data(pd.DataFrame(result_df), configs.RESULTS_DIR, result_file)
+            result_df = result_data_utils.append_row(result_df, model_name, dataset_name, precision, microop, labels[j], out_wo_fault[j], out_with_fault[j])
+            result_data_utils.save_result_data(pd.DataFrame(result_df), configs.RESULTS_DIR, result_file)
 
 
 def main() -> None:
