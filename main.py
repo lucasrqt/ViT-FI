@@ -89,20 +89,13 @@ def main() -> None:
         raise ValueError("Fault model not found.")
     statistical_fi.hook_microop(model_for_fault, microop, fault_model)
 
-    random_input = torch.rand((1, 3, 224, 224), requires_grad=False).to(device)
-    out_wo_fault = statistical_fi.run_inference(model, random_input, device)
-    out_with_fault = statistical_fi.run_inference(model_for_fault, random_input, device)
-
-    print("-" * 80)
-    print(f" [+] Ground truth: {out_with_fault} - Prediction without fault: {out_wo_fault} - Prediction with fault: {out_with_fault}")
-
-    # data_loader = model_utils.get_dataset(dataset_name, transforms, batch_size)
+    data_loader = model_utils.get_dataset(dataset_name, transforms, batch_size)
     
-    # result_file = result_data_utils.get_result_filename(model_name, dataset_name, precision, fault_model_threshold)
-    # result_df = result_data_utils.init_result_data(configs.RESULTS_DIR, result_file, configs.RESULT_COLUMS)
+    result_file = result_data_utils.get_result_filename(model_name, dataset_name, precision, fault_model_threshold)
+    result_df = result_data_utils.init_result_data(configs.RESULTS_DIR, result_file, configs.RESULT_COLUMS)
 
-    # print(" [+] Running injections...")
-    # run_injections(model_name, dataset_name, microop, model, model_for_fault, data_loader, precision, device, result_df)
+    print(" [+] Running injections...")
+    run_injections(model_name, dataset_name, microop, model, model_for_fault, data_loader, precision, device, result_df)
 
 
 
