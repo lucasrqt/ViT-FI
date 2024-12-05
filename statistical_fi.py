@@ -41,6 +41,13 @@ class MicroopHook():
 
     def hook_fn_to_inject_fault(self, module, module_input, module_output) -> None:
         faulty_input = module_output.clone()
+        device = module_output.get_device()
+        if device == -1:
+            device = "cpu"
+        else:
+            device = f"cuda:{device}"
+        
+        faulty_input = faulty_input.to(device)
 
         altered_floats, float_to_nan, nb_neginf, nb_posinf, nb_val_lt_0, nb_val_lt_1e3, nb_val_lt_1M, nb_val_lt_1B, nb_val_lt_1e20, nb_val_lt_1e30, nb_val_gt_0, nb_val_gt_1e3, nb_val_gt_1M, nb_val_gt_1B, nb_val_gt_1e20, nb_val_gt_1e30, pos_relative_err, neg_relative_err, nb_neg, nb_pos, max_diff, min_diff = self.__process_fault_model()
         
@@ -77,12 +84,12 @@ class MicroopHook():
         random_neg_indices = torch.randperm(len(negative_coords))[:num_modif_neg]
         random_pos_indices = torch.randperm(len(positive_coords))[:num_modif_pos]
 
-        flat_tensor = faulty_input.flatten()
+        flat_tensor = faulty_input.flatten().to(device)
 
         flat_tensor[random_neg_indices] = flat_tensor[random_neg_indices] * neg_relative_err
         flat_tensor[random_pos_indices] = flat_tensor[random_pos_indices] * pos_relative_err
 
-        faulty_input = flat_tensor.view(faulty_input.shape)
+        faulty_input = flat_tensor.view(faulty_input.shape).to(device)
 
         # handle nan and inf
         zero_coords = torch.nonzero(faulty_input == 0, as_tuple=False)
