@@ -97,7 +97,7 @@ class MicroopHook():
         all_coords = torch.cat((zero_coords, non_zero_coords), dim=0)
 
         # Remove the coordinates from subset_neg_coords and subset_pos_coords from all_coords
-        mask = ~torch.isin(all_coords, random_neg_indices).all(dim=1)
+        mask = ~torch.isin(all_coords, random_neg_indices).all(dim=1).to(device)
         all_coords = all_coords[mask]
         mask = ~torch.isin(all_coords, random_pos_indices).all(dim=1)
         all_coords = all_coords[mask]
