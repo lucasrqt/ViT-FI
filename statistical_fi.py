@@ -4,6 +4,7 @@ import random
 import os
 import pandas as pd
 from compare_utils import get_top_k_labels
+import time
 
 class MicroopHook():
     def __init__(self, microop, layer_id, fault_model):
@@ -31,16 +32,18 @@ class MicroopHook():
         nb_val_gt_1e30 = fault_model["# val > 1e30"] / fault_model["# total"]
         pos_relative_err = fault_model["mean RE > 0"] + 1
         neg_relative_err = abs(fault_model["mean RE < 0"] - 1)
-        nb_neg = fault_model["len(RE < 0)"]
-        nb_pos = fault_model["len(RE > 0)"]
+        nb_neg = fault_model["len(RE < 0)"] / fault_model["# total"]
+        nb_pos = fault_model["len(RE > 0)"] / fault_model["# total"]
         max_diff = fault_model["max_diff"]
         min_diff = fault_model["min_diff"]
 
         return (altered_floats, float_to_nan, nb_neginf, nb_posinf, nb_val_lt_0, nb_val_lt_1e3, nb_val_lt_1M, nb_val_lt_1B, nb_val_lt_1e20, nb_val_lt_1e30, nb_val_gt_0, nb_val_gt_1e3, nb_val_gt_1M, nb_val_gt_1B, nb_val_gt_1e20, nb_val_gt_1e30, pos_relative_err, neg_relative_err, nb_neg, nb_pos, max_diff, min_diff)
 
     def hook_fn_to_inject_fault(self, module, module_input, module_output) -> None:
-        faulty_input = module_input[0].clone()
+        faulty_input = module_output.clone()
+
         altered_floats, float_to_nan, nb_neginf, nb_posinf, nb_val_lt_0, nb_val_lt_1e3, nb_val_lt_1M, nb_val_lt_1B, nb_val_lt_1e20, nb_val_lt_1e30, nb_val_gt_0, nb_val_gt_1e3, nb_val_gt_1M, nb_val_gt_1B, nb_val_gt_1e20, nb_val_gt_1e30, pos_relative_err, neg_relative_err, nb_neg, nb_pos, max_diff, min_diff = self.__process_fault_model()
+        
         altered_floats = altered_floats.item()
         float_to_nan = float_to_nan.item()
         nb_neginf = nb_neginf.item()
@@ -63,24 +66,23 @@ class MicroopHook():
         nb_pos = nb_pos.item()
         max_diff = max_diff.item()
         min_diff = min_diff.item()
-
+        
         negative_coords = torch.nonzero(faulty_input < 0, as_tuple=False)
         positive_coords = torch.nonzero(faulty_input > 0, as_tuple=False)
 
         # Randomly select a subset of the coordinates to multiply by the relative error
-        random_neg_indices = torch.randperm(len(negative_coords))[:int(faulty_input.numel() * nb_neg)]
-        random_pos_indices = torch.randperm(len(positive_coords))[:int(faulty_input.numel() * nb_pos)]
+        num_modif_neg = int(faulty_input.numel() * nb_neg)
+        num_modif_pos = int(faulty_input.numel() * nb_pos)
+        
+        random_neg_indices = torch.randperm(len(negative_coords))[:num_modif_neg]
+        random_pos_indices = torch.randperm(len(positive_coords))[:num_modif_pos]
 
-        subset_neg_coords = negative_coords[random_neg_indices]
-        subset_pos_coords = positive_coords[random_pos_indices]
+        flat_tensor = faulty_input.flatten()
 
-        for coord in subset_neg_coords:
-            coord = tuple(coord)
-            faulty_input[coord] = faulty_input[coord] * neg_relative_err
+        flat_tensor[random_neg_indices] = flat_tensor[random_neg_indices] * neg_relative_err
+        flat_tensor[random_pos_indices] = flat_tensor[random_pos_indices] * pos_relative_err
 
-        for coord in subset_pos_coords:
-            coord = tuple(coord)
-            faulty_input[coord] = faulty_input[coord] * pos_relative_err
+        faulty_input = flat_tensor.view(faulty_input.shape)
 
         # handle nan and inf
         zero_coords = torch.nonzero(faulty_input == 0, as_tuple=False)
@@ -88,9 +90,9 @@ class MicroopHook():
         all_coords = torch.cat((zero_coords, non_zero_coords), dim=0)
 
         # Remove the coordinates from subset_neg_coords and subset_pos_coords from all_coords
-        mask = ~torch.isin(all_coords, subset_neg_coords).all(dim=1)
+        mask = ~torch.isin(all_coords, random_neg_indices).all(dim=1)
         all_coords = all_coords[mask]
-        mask = ~torch.isin(all_coords, subset_pos_coords).all(dim=1)
+        mask = ~torch.isin(all_coords, random_pos_indices).all(dim=1)
         all_coords = all_coords[mask]
 
         random_nan_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * float_to_nan)]
@@ -138,8 +140,7 @@ class MicroopHook():
             low, high = min_diff, -1e30
             faulty_input[coord] = torch.rand(1) * (high - low) + low
 
-        module_input = (faulty_input,)
-
+        return faulty_input
 
 def get_fault_model(fault_model_file, model_name, microop, precision, threshold):
     fault_model_file = os.path.join(configs.RESULTS_DIR, fault_model_file)

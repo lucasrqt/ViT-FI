@@ -6,23 +6,7 @@ import argparse
 import model_utils
 import result_data_utils
 import torch
-from compare_utils import get_top_k_labels
-import random
 import pandas as pd
-
-class LayerHook:
-    def __init__(self, microop, fault_model):
-        self.microop = microop
-
-    def hook_function_to_extract_layers(self, module, module_input, kwargs, module_output) -> None:
-            layer_class = module.__class__.__name__.strip()
-            layer_num_parameters = sum(p.numel() for p in module.parameters())
-            save_path = f"id_{1}_name_{0}_class_{layer_class}"
-            print("HOOK")
-            print(module_input[0])
-            faulty_input = torch.mul(module_input[0], 0.14)
-            module_input = (faulty_input,)
-            print(module_input)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Perform high-level fault injections on ViT model according neutron beam fault model.", add_help=True)
@@ -60,7 +44,7 @@ def run_injections(model_name, dataset_name, microop, model, model_for_fault, da
         print("-" * 80)
         print(f" [+] Batch {i} - Microop: {microop}")
         for j in range(len(images)):
-            print(f" [+] Image {i+j} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
+            print(f" [+] Image {(i*len(images))+j+1} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
 
             result_df = result_data_utils.append_row(result_df, model_name, dataset_name, precision, microop, labels[j].item(), out_wo_fault[j].item(), out_with_fault[j].item())
             result_data_utils.save_result_data(pd.DataFrame(result_df), configs.RESULTS_DIR, result_file)
@@ -94,6 +78,17 @@ def main() -> None:
     if fault_model.empty:
         raise ValueError("Fault model not found.")
     statistical_fi.hook_microop(model_for_fault, microop, fault_model)
+
+    #### TEST CASE
+    # dummy_input = torch.randn(32, 3, 224, 224)
+    # out_wo_fault = statistical_fi.run_inference(model, dummy_input, device).squeeze()
+    # out_with_fault = statistical_fi.run_inference(model_for_fault, dummy_input, device).squeeze()
+
+    # print("-" * 80)
+    # print(f" [+] Batch {0} - Microop: {microop}")
+    # for j in range(len(dummy_input)):
+    #     print(f" [+] Image {j+1} - Ground truth: {out_wo_fault[j].item()} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
+    ####
 
     data_loader = model_utils.get_dataset(dataset_name, transforms, batch_size)
     
