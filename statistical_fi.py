@@ -5,6 +5,7 @@ import os
 import pandas as pd
 from compare_utils import get_top_k_labels
 import time
+import sys
 
 class MicroopHook():
     def __init__(self, microop, layer_id, fault_model):
@@ -40,6 +41,7 @@ class MicroopHook():
         return (altered_floats, float_to_nan, nb_neginf, nb_posinf, nb_val_lt_0, nb_val_lt_1e3, nb_val_lt_1M, nb_val_lt_1B, nb_val_lt_1e20, nb_val_lt_1e30, nb_val_gt_0, nb_val_gt_1e3, nb_val_gt_1M, nb_val_gt_1B, nb_val_gt_1e20, nb_val_gt_1e30, pos_relative_err, neg_relative_err, nb_neg, nb_pos, max_diff, min_diff)
 
     def hook_fn_to_inject_fault(self, module, module_input, module_output) -> None:
+        print(f"\n [+] INSIDE HOOK: {module_output.shape}")
         faulty_input = module_output.clone()
         device = module_output.get_device()
         if device == -1:
@@ -69,11 +71,16 @@ class MicroopHook():
         nb_val_gt_1e30 = nb_val_gt_1e30.item()
         pos_relative_err = pos_relative_err.item()
         neg_relative_err = neg_relative_err.item()
-        nb_neg = nb_neg.item()
-        nb_pos = nb_pos.item()
+        nb_neg = nb_neg.item()/4
+        nb_pos = nb_pos.item()/4
         max_diff = max_diff.item()
         min_diff = min_diff.item()
         
+        print(f" [+] microop: {self.microop}")
+        print(f" [+] infs = {(nb_posinf + nb_neginf)*100:.6f}% nans = {(float_to_nan * 100):.6}%")
+        print(f" [+] lagre values = {(nb_val_gt_1e30 + nb_val_lt_1e30)*100:.6f}%")
+        sys.exit(0)
+
         negative_coords = torch.nonzero(faulty_input < 0, as_tuple=False)
         positive_coords = torch.nonzero(faulty_input > 0, as_tuple=False)
 
@@ -81,9 +88,8 @@ class MicroopHook():
         num_modif_neg = int(faulty_input.numel() * nb_neg)
         num_modif_pos = int(faulty_input.numel() * nb_pos)
         
-        random_neg_indices = torch.randperm(len(negative_coords))[:num_modif_neg]
-        random_pos_indices = torch.randperm(len(positive_coords))[:num_modif_pos]
-
+        random_neg_indices = torch.randperm(len(negative_coords))[:num_modif_neg].to(device)
+        random_pos_indices = torch.randperm(len(positive_coords))[:num_modif_pos].to(device)
         flat_tensor = faulty_input.flatten().to(device)
 
         flat_tensor[random_neg_indices] = flat_tensor[random_neg_indices] * neg_relative_err
@@ -92,14 +98,14 @@ class MicroopHook():
         faulty_input = flat_tensor.view(faulty_input.shape).to(device)
 
         # handle nan and inf
-        zero_coords = torch.nonzero(faulty_input == 0, as_tuple=False)
-        non_zero_coords = torch.nonzero(faulty_input != 0, as_tuple=False)
-        all_coords = torch.cat((zero_coords, non_zero_coords), dim=0)
+        zero_coords = torch.nonzero(faulty_input == 0, as_tuple=False).to(device)
+        non_zero_coords = torch.nonzero(faulty_input != 0, as_tuple=False).to(device)
+        all_coords = torch.cat((zero_coords, non_zero_coords), dim=0).to(device)
 
         # Remove the coordinates from subset_neg_coords and subset_pos_coords from all_coords
         mask = ~torch.isin(all_coords, random_neg_indices).all(dim=1).to(device)
         all_coords = all_coords[mask]
-        mask = ~torch.isin(all_coords, random_pos_indices).all(dim=1)
+        mask = ~torch.isin(all_coords, random_pos_indices).all(dim=1).to(device)
         all_coords = all_coords[mask]
 
         random_nan_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * float_to_nan)]
@@ -108,13 +114,13 @@ class MicroopHook():
             coord = tuple(coord)
             faulty_input[coord] = float("nan")
 
-        mask = ~torch.isin(all_coords, subset_nan_coords).all(dim=1)
+        mask = ~torch.isin(all_coords, subset_nan_coords).all(dim=1).to(device)
         all_coords = all_coords[mask]
 
-        random_neginf_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_neginf)]
+        random_neginf_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_neginf)].to(device)
         subset_neginf_coords = all_coords[random_neginf_indices]
 
-        random_posinf_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_posinf)]
+        random_posinf_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_posinf)].to(device)
         subset_posinf_coords = all_coords[random_posinf_indices]
 
         for coord in subset_neginf_coords:
@@ -125,16 +131,16 @@ class MicroopHook():
             coord = tuple(coord)
             faulty_input[coord] = float("inf")
 
-        mask = ~torch.isin(all_coords, subset_neginf_coords).all(dim=1)
+        mask = ~torch.isin(all_coords, subset_neginf_coords).all(dim=1).to(device)
         all_coords = all_coords[mask]
-        mask = ~torch.isin(all_coords, subset_posinf_coords).all(dim=1)
+        mask = ~torch.isin(all_coords, subset_posinf_coords).all(dim=1).to(device)
         all_coords = all_coords[mask]
 
         # handle large values
-        random_val_gt_1e30_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_val_gt_1e30)]
+        random_val_gt_1e30_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_val_gt_1e30)].to(device)
         subset_val_gt_1e30_coords = all_coords[random_val_gt_1e30_indices]
 
-        random_val_lt_1e30_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_val_lt_1e30)]
+        random_val_lt_1e30_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_val_lt_1e30)].to(device)
         subset_val_lt_1e30_coords = all_coords[random_val_lt_1e30_indices]
 
         for coord in subset_val_gt_1e30_coords:
