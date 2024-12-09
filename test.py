@@ -26,8 +26,10 @@ class MicroopHook():
 class ShapeHook():
     def __init__(self):
         self.shape = None
+        self.size = None
 
     def hook_fn_to_inject_fault(self, module, module_input, module_output) -> None:
+        self.size = sum(p.numel() for p in module_input)
         self.shape = module_output.shape
 
         return module_output
@@ -45,7 +47,26 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_injections(model, model_for_fault, images, labels, device, hook) -> None:
+# def run_injections(model, model_for_fault, images, labels, device) -> None:
+#     model.eval()
+#     model.to(device)
+
+#     model_for_fault.eval()
+#     model_for_fault.to(device)
+        
+#     images = images.to(device)
+#     labels = labels.to(device)
+
+#     # microop = statistical_fi.select_microop(model_name)
+#     out_wo_fault = statistical_fi.run_inference(model, images, device).squeeze()
+#     out_with_fault = statistical_fi.run_inference(model_for_fault, images, device).squeeze()
+#     labels = labels
+
+#     print("-" * 80)
+#     for j in range(len(images)):
+#         print(f" [+] Image {j+1} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
+
+def run_injections(model, model_for_fault, images, labels, device) -> None:
     model.eval()
     model.to(device)
 
@@ -63,6 +84,8 @@ def run_injections(model, model_for_fault, images, labels, device, hook) -> None
     print("-" * 80)
     for j in range(len(images)):
         print(f" [+] Image {j+1} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
+
+    return out_wo_fault, out_with_fault
 
 
 def main() -> None:
@@ -126,35 +149,53 @@ def main() -> None:
         if layer.__class__.__name__.strip() == microop:
             layers.append(layer)
 
-    dummy_input = torch.randn(batch_size, 3, 224, 224)
-    shapes = list()
-    for layer in layers:
-        shape_hook = ShapeHook()
-        handler = layer.register_forward_hook(shape_hook.hook_fn_to_inject_fault)
-        model_for_fault(dummy_input)
-        shapes.append(shape_hook.shape)
-        handler.remove()
+    # dummy_input = torch.randn(batch_size, 3, 224, 224)
+    # shapes = list()
+    # for layer in enumerate(layers):
+    #     shape_hook = ShapeHook()
+    #     handler = layer.register_forward_hook(shape_hook.hook_fn_to_inject_fault)
+    #     model_for_fault(dummy_input)
+    #     shapes.append(shape_hook.size)
+    #     handler.remove()
     
-    print(" [+] Got shapes.")
 
-    for layer_id, (layer, shape) in enumerate(zip(layers, shapes)):
-        print(f" [+] Injecting fault in layer {layer_id} for microop {microop}...")
-        for output in microbench_outputs:
-            corrupted_output = np.load(f"data/microbench/{output}")
-            corrupted_output = torch.tensor(corrupted_output["alt_output"]).to(device)
-            print(corrupted_output.shape , shape)
-            if corrupted_output.shape != shape:
-                continue
+    # print(" [+] Got shapes.")
 
-            hook = MicroopHook(corrupted_output)
-            handler = layer.register_forward_hook(hook.hook_fn_to_inject_fault)
-            run_injections(model, model_for_fault, images, labels, device, hook)
-            handler.remove()
+    dfs = []
+    
+    for output in microbench_outputs:
+        corrupted_output = np.load(f"data/microbench/{output}")
+        corrupted_output = torch.tensor(corrupted_output["alt_output"]).to(device)
+        if corrupted_output.dtype != torch.float32:
+            # corrupted_output = corrupted_output.float()
+            continue
 
+        layer = layers[-1]
+        hook = MicroopHook(corrupted_output)
+        handler = layer.register_forward_hook(hook.hook_fn_to_inject_fault)
+        out_wo_faults, out_w_fault = run_injections(model, model_for_fault, images, labels, device)
+        handler.remove()
+
+        for i in range(len(images)):
+            dfs.append({"model": model_name, "microop": microop, "precision": precision, "diff_threshold": fault_model_threshold, "file": output, "image": i, "label": labels[i].item(), "prediction_wo_fault": out_wo_faults[i].item(), "prediction_w_fault": out_w_fault[i].item()})
 
         # print(" [+] Running injections...")
         # run_injections(model_name, dataset_name, microop, model, model_for_fault, data_loader, precision, device, result_df, result_file)
 
+    result_df = pd.DataFrame(dfs)
+    result_df.to_csv(f"data/{config}__test.csv", index=False)
+
+    crit_err = False
+    print("="*40)
+    for i, row in result_df.iterrows():
+        if row["prediction_wo_fault"] != row["prediction_w_fault"]:
+            crit_err = True
+            print(f" [+] File {row['file']} - Image {row['image']} - Ground truth: {row['label']} - Prediction without fault: {row['prediction_wo_fault']} - Prediction with fault: {row['prediction_w_fault']}")
+
+    if crit_err is False:
+        print(" [-] No critical errors found.")
+
+    print("="*40)
 
 def main2() -> None:
     args = parse_args()
@@ -209,8 +250,8 @@ def main2() -> None:
     config = f"{model_name}_{microop}_{precision}_{fault_model_threshold}"
     print(config)
 
-    microbench_outputs = [file for file in os.listdir("data/microbench/") if config in file]
-    print(f" [+] Found {len(microbench_outputs)} outputs for {config}.")
+    # microbench_outputs = [file for file in os.listdir("data/microbench/") if config in file]
+    # print(f" [+] Found {len(microbench_outputs)} outputs for {config}.")
 
     layers = list()
     for layer_id, (name, layer) in enumerate(model_for_fault.named_modules()):
@@ -223,8 +264,11 @@ def main2() -> None:
     #     shape_hook = ShapeHook()
     #     handler = layer.register_forward_hook(shape_hook.hook_fn_to_inject_fault)
     #     model_for_fault(dummy_input)
-    #     shapes.append(shape_hook.shape)
+    #     shapes.append(shape_hook.size)
     #     handler.remove()
+
+    # shapes = shapes.sort(key=lambda x: x)
+    # layer = shapes[-1]
     
     # print(" [+] Got shapes.")
 
@@ -232,13 +276,35 @@ def main2() -> None:
     if fault_model.empty:
         raise ValueError("Fault model not found.")
 
+    dfs = []
     for layer_id, layer in enumerate(layers):
+        # for layer_id, layer in enumerate(layers):
         print(f" [+] Injecting fault in layer {layer_id} for microop {microop}...")
         hook = statistical_fi.MicroopHook(microop, layer_id, fault_model)
         handler = layer.register_forward_hook(hook.hook_fn_to_inject_fault)
-        run_injections(model, model_for_fault, images, labels, device, hook)
+        out_wo_fault, out_w_fault = run_injections(model, model_for_fault, images, labels, device)
         handler.remove()
 
+        for i in range(len(images)):
+            dfs.append({"model": model_name, "microop": microop, "precision": precision, "diff_threshold": fault_model_threshold, "layer_id": layer_id, "image": i, "label": labels[i].item(), "prediction_wo_fault": out_wo_fault[i].item(), "prediction_w_fault": out_w_fault[i].item()})
+
+        # print(" [+] Running injections...")
+        # run_injections(model_name, dataset_name, microop, model, model_for_fault, data_loader, precision, device, result_df, result_file)
+
+    result_df = pd.DataFrame(dfs)
+    result_df.to_csv(f"data/{config}_stats_test.csv", index=False)
+
+    crit_err = False
+    print("="*40)
+    for i, row in result_df.iterrows():
+        if row["prediction_wo_fault"] != row["prediction_w_fault"]:
+            crit_err = True
+            print(f" [+] Layer_id {row['layer_id']} - Image {row['image']} - Ground truth: {row['label']} - Prediction without fault: {row['prediction_wo_fault']} - Prediction with fault: {row['prediction_w_fault']}")
+
+    if crit_err is False:
+        print(" [-] No critical errors found.")
+
+    print("="*40)
 
         # print(" [+] Running injections...")
         # run_injections(model_name, dataset_name, microop, model, model_for_fault, data_loader, precision, device, result_df, result_file)
