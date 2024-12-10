@@ -20,8 +20,8 @@ float_thresholds=(
 
 swin_microops=(
     "SwinTransformerBlock"
-    "Mlp"
-    "WindowAttention"
+    # "Mlp"
+    # "WindowAttention"
 )
 
 vit_microops=(

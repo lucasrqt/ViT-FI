@@ -123,7 +123,7 @@ def main() -> None:
     #     print(f" [+] Image {j+1} - Ground truth: {out_wo_fault[j].item()} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
     ####
 
-    # data_loader = model_utils.get_dataset(dataset_name, transforms, batch_size)
+    # _, data_loader = model_utils.get_dataset(dataset_name, transforms, batch_size)
     # Set a sampler on the CPU
     sampler_generator = torch.Generator(device=configs.CPU)
     sampler_generator.manual_seed(configs.TORCH_SEED)
@@ -232,7 +232,7 @@ def main2() -> None:
     #     print(f" [+] Image {j+1} - Ground truth: {out_wo_fault[j].item()} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
     ####
 
-    # data_loader = model_utils.get_dataset(dataset_name, transforms, batch_size)
+    # _, data_loader = model_utils.get_dataset(dataset_name, transforms, batch_size)
     # Set a sampler on the CPU
     sampler_generator = torch.Generator(device=configs.CPU)
     sampler_generator.manual_seed(configs.TORCH_SEED)

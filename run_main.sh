@@ -4,7 +4,7 @@ script="main.py"
 
 # Run the tests
 models=(
-    # "vit_base_patch16_224"
+    "vit_base_patch16_224"
     "swin_base_patch4_window7_224"
 )
 
@@ -19,8 +19,8 @@ float_thresholds=(
 )
 
 swin_microops=(
-    # "SwinTransformerBlock"
-    # "Mlp"
+    "SwinTransformerBlock"
+    "Mlp"
     "WindowAttention"
 )
 
@@ -41,12 +41,12 @@ for model in "${models[@]}"; do
             if [ "$model" == "swin_base_patch4_window7_224" ]; then
                 for microop in "${swin_microops[@]}"; do
                     echo "Model: $model, Precision: $prec, Threshold: $threshold, Microop: $microop"
-                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize
+                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize --inject-on-correct-predictions
                 done
             else
                 for microop in "${vit_microops[@]}"; do
                     echo "Model: $model, Precision: $prec, Threshold: $threshold, Microop: $microop"
-                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize
+                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize --inject-on-correct-predictions
                 done
             fi
         done

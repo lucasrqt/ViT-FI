@@ -8,6 +8,8 @@ import time
 import sys
 import numpy as np
 
+_LAYER_TO_HOOK = [1e-30]
+
 class MicroopHook():
     def __init__(self, microop, layer_id, fault_model):
         self.microop = microop
@@ -139,6 +141,20 @@ class MicroopHook():
 
         return faulty_input
 
+class GetLayerSize():
+    def __init__(self):
+        self.input_size = 0
+        self.microop_size = 0
+
+    def hook_fn_to_get_layer_size(self, module, module_input, module_output) -> None:
+        global _LAYER_TO_HOOK
+        layer_num_parameters = sum(p.numel() for p in module.parameters())
+        self.input_size = sum(p.numel() for p in module_input)
+        self.microop_size = layer_num_parameters * self.input_size
+        if self.microop_size > _LAYER_TO_HOOK[-1]:
+            _LAYER_TO_HOOK = [module, self.microop_size, self.input_size]
+
+
 def get_fault_model(fault_model_file, model_name, microop, precision, threshold):
     fault_model_file = os.path.join(configs.RESULTS_DIR, fault_model_file)
     fault_model = pd.read_csv(fault_model_file, index_col=False)
@@ -161,20 +177,26 @@ def check_microop(model_name, microop):
         return ValueError(f"Model {model_name} not supported.")
 
 
-def hook_microop(model, microop, fault_model) -> torch.utils.hooks.RemovableHandle:
+def hook_microop(model, microop, fault_model, dummy_input) -> torch.utils.hooks.RemovableHandle:
     layers = list()
+    handlers = list()
     for layer_id, (name, layer) in enumerate(model.named_modules()):
         if layer.__class__.__name__.strip() == microop:
-            layers.append((layer, layer_id))
+            # layers.append((layer, layer_id))
+            hook = GetLayerSize()
+            handler = layer.register_forward_hook(hook.hook_fn_to_get_layer_size)
+            handlers.append(handler)
+            
+    _ = model(dummy_input)
 
-    # random.seed(configs.SEED)
-    # layer_index = random.randint(0, len(layers) - 1)
+    for handler in handlers:
+        handler.remove()
 
-    layer, layer_id = layers[-1]
+    layer = _LAYER_TO_HOOK[0]
     hook = MicroopHook(microop, layer_id, fault_model)
     handler = layer.register_forward_hook(hook.hook_fn_to_inject_fault)
 
-    return handler
+    return hook, handler
 
 
 def run_inference(model, images, device):

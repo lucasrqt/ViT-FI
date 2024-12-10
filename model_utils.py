@@ -4,6 +4,8 @@ from torchvision import datasets as tv_datasets
 from torchvision import transforms as tv_transforms
 import configs
 from typing import Dict
+from torch.utils.data import Subset
+import pandas as pd
 
 def get_vit_config(model) -> Dict:
     return timm.data.resolve_data_config({}, model=model)
@@ -37,4 +39,9 @@ def get_dataset(dataset_name: str, transforms: tv_transforms.Compose, batch_size
     test_set = tv_datasets.imagenet.ImageNet(root=dataset_path, transform=transforms,
                                                  split='val')
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False)
-    return test_loader
+    return test_set, test_loader
+
+def get_correct_indices(test_set, file) -> Subset:
+    df = pd.read_csv(file, index_col=0)
+    indices = df.index.tolist()
+    return indices, Subset(test_set, indices)

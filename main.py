@@ -7,6 +7,7 @@ import model_utils
 import result_data_utils
 import torch
 import pandas as pd
+import numpy as np
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Perform high-level fault injections on ViT model according neutron beam fault model.", add_help=True)
@@ -16,8 +17,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-p", "--precision", type=str, default=configs.FP32, help="Precision of the model and inputs.", choices=[configs.FP16, configs.FP32])
     parser.add_argument("-d", "--device", type=str, default=configs.GPU_DEVICE, help="Device to run the model.", choices=[configs.CPU, configs.GPU_DEVICE])
     parser.add_argument("-M", "--microop", type=str, default=None, help="Microoperation to inject the fault.", choices=configs.MICROBENCHMARK_MODULES)
-    parser.add_argument("-s", "--seed", type=int, default=configs.TORCH_SEED, help="Random seed.")
+    parser.add_argument("-s", "--seed", type=int, default=configs.SEED, help="Random seed.")
     parser.add_argument("--fault-model-threshold", type=float, default=1e-03, help="Threshold for the fault model data.")
+    parser.add_argument("--inject-on-correct-predictions", action="store_true", help="Inject faults only on correct predictions.", default=False)
     return parser.parse_args()
 
 
@@ -63,6 +65,11 @@ def main() -> None:
     dataset_name = args.dataset
     fault_model_threshold = f"{args.fault_model_threshold:.2e}"
     microop = args.microop
+    inject_on_corr_preds = args.inject_on_correct_predictions
+
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
     if microop is None:
         raise ValueError("Microoperation not defined.")
 
@@ -73,11 +80,6 @@ def main() -> None:
     model = model_utils.get_model(model_name, precision)
     model_for_fault = model_utils.get_model(model_name, precision)
     transforms = model_utils.get_vit_transforms(model, precision)
-
-    fault_model = statistical_fi.get_fault_model(configs.FAULT_MODEL_FILE, model_name, microop, precision, fault_model_threshold)
-    if fault_model.empty:
-        raise ValueError("Fault model not found.")
-    statistical_fi.hook_microop(model_for_fault, microop, fault_model)
 
     #### TEST CASE
     # dummy_input = torch.randn(32, 3, 224, 224)
@@ -90,8 +92,21 @@ def main() -> None:
     #     print(f" [+] Image {j+1} - Ground truth: {out_wo_fault[j].item()} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
     ####
 
-    data_loader = model_utils.get_dataset(dataset_name, transforms, batch_size)
+    test_set, data_loader = model_utils.get_dataset(dataset_name, transforms, batch_size)
+    if inject_on_corr_preds:
+        _ , subset = model_utils.get_correct_indices(test_set, f"data/{model_name}_{dataset_name}_{precision}_correct_predictions.csv")
+        data_loader = torch.utils.data.DataLoader(subset, batch_size=batch_size, shuffle=False)
+        print(f" [+] Injecting faults on correct predictions only.")
+
+    dummy_input, _ = next(iter(data_loader))
+    fault_model = statistical_fi.get_fault_model(configs.FAULT_MODEL_FILE, model_name, microop, precision, fault_model_threshold)
+    if fault_model.empty:
+        raise ValueError("Fault model not found.")
+    _, handler = statistical_fi.hook_microop(model_for_fault, microop, fault_model, dummy_input)
+    del dummy_input
     
+    print(f" [+] Injecting on {len(data_loader)} batches of size {batch_size}...")
+
     result_file = result_data_utils.get_result_filename(model_name, dataset_name, precision, microop, fault_model_threshold)
     result_df = result_data_utils.init_result_data(configs.RESULTS_DIR, result_file, configs.RESULT_COLUMS)
 
