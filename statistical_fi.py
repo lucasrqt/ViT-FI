@@ -11,11 +11,14 @@ import numpy as np
 _LAYER_TO_HOOK = [1e-30]
 
 class MicroopHook():
-    def __init__(self, microop, layer_id, fault_model):
+    def __init__(self, model_name, microop, batch_size, layer_id, fault_model):
+        self.model_name = model_name
         self.microop = microop
         self.layer_id = layer_id
         self.fault_model = fault_model
-
+        self.critical_batches = None
+        self.batch_size = batch_size
+        self.batch_counter = 0
     def __process_fault_model(self):
         fault_model = self.fault_model
         altered_floats = fault_model["#alt_val"] / fault_model["#total"]
@@ -29,6 +32,9 @@ class MicroopHook():
     
     def __sample_relative_errors(self, size, quantiles, percentile_values):
         return np.interp(np.random.rand(size), quantiles, percentile_values)
+
+    def set_critical_batches(self, critical_batches):
+        self.critical_batches = critical_batches
 
     def hook_fn_to_inject_fault(self, module, module_input, module_output) -> None:
         print(f"\n [+] INSIDE HOOK: {module_output.shape}")
@@ -68,8 +74,15 @@ class MicroopHook():
         faulty_input[indices] *= (1 + relative_errors)
 
         faulty_input = faulty_input.view(module_output.shape).to(device)
-        print(f" [+] FAULTY INPUT: {faulty_input.shape}")
-        print(f" [+] IS MODIFIED: {not torch.equal(faulty_input, module_output)}")
+
+        if self.critical_batches is not None and self.batch_counter in self.critical_batches:
+            file = f"data/relative_err_saves/faulty-{self.model_name}-{self.microop}-batch{self.batch_counter}-batchsize{self.batch_size}.pt"
+            torch.save(torch.cat((module_output, faulty_input), dim=0), file)
+        
+        self.batch_counter += 1
+
+        # print(f" [+] FAULTY INPUT: {faulty_input.shape}")
+        # print(f" [+] IS MODIFIED: {not torch.equal(faulty_input, module_output)}")
 
         # num_modif_neg = int(faulty_input.numel() * nb_neg)
         # num_modif_pos = int(faulty_input.numel() * nb_pos)
@@ -177,7 +190,7 @@ def check_microop(model_name, microop):
         return ValueError(f"Model {model_name} not supported.")
 
 
-def hook_microop(model, microop, fault_model, dummy_input) -> torch.utils.hooks.RemovableHandle:
+def hook_microop(model, model_name, microop, batch_size, fault_model, dummy_input) -> torch.utils.hooks.RemovableHandle:
     layers = list()
     handlers = list()
     for layer_id, (name, layer) in enumerate(model.named_modules()):
@@ -193,7 +206,7 @@ def hook_microop(model, microop, fault_model, dummy_input) -> torch.utils.hooks.
         handler.remove()
 
     layer = _LAYER_TO_HOOK[0]
-    hook = MicroopHook(microop, layer_id, fault_model)
+    hook = MicroopHook(model_name, microop, batch_size, layer_id, fault_model)
     handler = layer.register_forward_hook(hook.hook_fn_to_inject_fault)
 
     return hook, handler

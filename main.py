@@ -8,6 +8,7 @@ import result_data_utils
 import torch
 import pandas as pd
 import numpy as np
+from torch.utils.data import Subset
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Perform high-level fault injections on ViT model according neutron beam fault model.", add_help=True)
@@ -20,10 +21,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-s", "--seed", type=int, default=configs.SEED, help="Random seed.")
     parser.add_argument("--fault-model-threshold", type=float, default=1e-03, help="Threshold for the fault model data.")
     parser.add_argument("--inject-on-correct-predictions", action="store_true", help="Inject faults only on correct predictions.", default=False)
+    parser.add_argument("--load-critical", action="store_true", help="Only load the images that are critical for the fault injection.", default=False)
     return parser.parse_args()
 
 
-def run_injections(model_name, dataset_name, microop, model, model_for_fault, data_loader, precision, device, result_df, result_file) -> None:
+def run_injections(model_name, dataset_name, microop, model, model_for_fault, data_loader, precision, device, batch_size, result_df, result_file) -> None:
     model.eval()
     model.to(device)
 
@@ -46,10 +48,12 @@ def run_injections(model_name, dataset_name, microop, model, model_for_fault, da
         print("-" * 80)
         print(f" [+] Batch {i} - Microop: {microop}")
         for j in range(len(images)):
-            print(f" [+] Image {(i*len(images))+j+1} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
+            print(f" [+] Image {(i*batch_size)+j+1} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
 
             result_df = result_data_utils.append_row(result_df, model_name, dataset_name, precision, microop, labels[j].item(), out_wo_fault[j].item(), out_with_fault[j].item())
             result_data_utils.save_result_data(pd.DataFrame(result_df), configs.RESULTS_DIR, result_file)
+
+    print(" [+] Done.")
 
 
 def main() -> None:
@@ -95,6 +99,21 @@ def main() -> None:
     test_set, data_loader = model_utils.get_dataset(dataset_name, transforms, batch_size)
     if inject_on_corr_preds:
         _ , subset = model_utils.get_correct_indices(test_set, f"data/{model_name}_{dataset_name}_{precision}_correct_predictions.csv")
+        if args.load_critical:
+            df = pd.read_csv(f"data/fi_critical_images.csv")
+            df = df[(df["model"] == model_name) & (df["microop"] == microop)]
+            if df.empty:
+                raise ValueError("No critical images found.")
+            indices = df["image_id"].tolist()
+            # full_batchs = []
+            batch_indices = []
+            for index in indices:
+                batch_id = model_utils.get_batch_id(index, batch_size)
+                batch_indices.append(batch_id)
+            #     full_batchs += range(batch_id*batch_size, (batch_id+1)*batch_size)
+            # subset = Subset(subset, full_batchs)
+
+        print(f" [+] {len(subset)} correct predictions found.")
         data_loader = torch.utils.data.DataLoader(subset, batch_size=batch_size, shuffle=False)
         print(f" [+] Injecting faults on correct predictions only.")
 
@@ -102,7 +121,9 @@ def main() -> None:
     fault_model = statistical_fi.get_fault_model(configs.FAULT_MODEL_FILE, model_name, microop, precision, fault_model_threshold)
     if fault_model.empty:
         raise ValueError("Fault model not found.")
-    _, handler = statistical_fi.hook_microop(model_for_fault, microop, fault_model, dummy_input)
+    hook, handler = statistical_fi.hook_microop(model_for_fault, model_name, microop, batch_size, fault_model, dummy_input)
+    if args.load_critical:
+        hook.set_critical_batches(batch_indices)
     del dummy_input
     
     print(f" [+] Injecting on {len(data_loader)} batches of size {batch_size}...")
@@ -111,7 +132,8 @@ def main() -> None:
     result_df = result_data_utils.init_result_data(configs.RESULTS_DIR, result_file, configs.RESULT_COLUMS)
 
     print(" [+] Running injections...")
-    run_injections(model_name, dataset_name, microop, model, model_for_fault, data_loader, precision, device, result_df, result_file)
+    run_injections(model_name, dataset_name, microop, model, model_for_fault, data_loader, precision, device, batch_size, result_df, result_file)
+    handler.remove()
 
 
 

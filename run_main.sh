@@ -41,12 +41,12 @@ for model in "${models[@]}"; do
             if [ "$model" == "swin_base_patch4_window7_224" ]; then
                 for microop in "${swin_microops[@]}"; do
                     echo "Model: $model, Precision: $prec, Threshold: $threshold, Microop: $microop"
-                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize --inject-on-correct-predictions
+                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize --inject-on-correct-predictions --load-critical
                 done
             else
                 for microop in "${vit_microops[@]}"; do
                     echo "Model: $model, Precision: $prec, Threshold: $threshold, Microop: $microop"
-                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize --inject-on-correct-predictions
+                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize --inject-on-correct-predictions --load-critical
                 done
             fi
         done
