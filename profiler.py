@@ -13,7 +13,7 @@ BATCH_SIZE = 32
 DATASET = "imagenet"
 
 def main() -> None:
-    sort_by_keyword = configs.GPU_DEVICE + "_time_total"
+    sort_by_keyword = configs.GPU_DEVICE[:-2] + "_time_total"
     activities = [ProfilerActivity.CUDA]
     for model_name in MODELS:
         model = model_utils.get_model(model_name, configs.FP32)
