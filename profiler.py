@@ -30,6 +30,7 @@ def main() -> None:
         
         print("="*20, model_name, "="*20)
         print(prof.key_averages().table(sort_by=sort_by_keyword))
+        prof.export_chrome_trace(f"data/profiles/{model_name}_trace.json")
 
 
 
