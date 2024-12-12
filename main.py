@@ -22,6 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fault-model-threshold", type=float, default=1e-03, help="Threshold for the fault model data.")
     parser.add_argument("--inject-on-correct-predictions", action="store_true", help="Inject faults only on correct predictions.", default=False)
     parser.add_argument("--load-critical", action="store_true", help="Only load the images that are critical for the fault injection.", default=False)
+    parser.add_argument("--save-critical-logits", action="store_true", help="Save the logits of the critical images.", default=False)
     return parser.parse_args()
 
 
@@ -70,6 +71,7 @@ def main() -> None:
     fault_model_threshold = f"{args.fault_model_threshold:.2e}"
     microop = args.microop
     inject_on_corr_preds = args.inject_on_correct_predictions
+    save_critical_logits = args.save_critical_logits
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -124,6 +126,7 @@ def main() -> None:
     hook, handler = statistical_fi.hook_microop(model_for_fault, model_name, microop, batch_size, fault_model, dummy_input)
     if args.load_critical:
         hook.set_critical_batches(batch_indices)
+        hook.set_save_critical_logits(save_critical_logits)
     del dummy_input
     
     print(f" [+] Injecting on {len(data_loader)} batches of size {batch_size}...")

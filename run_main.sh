@@ -34,6 +34,7 @@ device="cuda:0"
 dataset="imagenet"
 batchsize=32
 
+options="--inject-on-correct-predictions --load-critical --save-critical-logits"
 
 for model in "${models[@]}"; do
     for prec in "${precision[@]}"; do
@@ -41,12 +42,12 @@ for model in "${models[@]}"; do
             if [ "$model" == "swin_base_patch4_window7_224" ]; then
                 for microop in "${swin_microops[@]}"; do
                     echo "Model: $model, Precision: $prec, Threshold: $threshold, Microop: $microop"
-                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize --inject-on-correct-predictions --load-critical
+                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize $options
                 done
             else
                 for microop in "${vit_microops[@]}"; do
                     echo "Model: $model, Precision: $prec, Threshold: $threshold, Microop: $microop"
-                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize --inject-on-correct-predictions --load-critical
+                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize $options
                 done
             fi
         done

@@ -19,6 +19,8 @@ class MicroopHook():
         self.critical_batches = None
         self.batch_size = batch_size
         self.batch_counter = 0
+        self.save_critical_logits = False
+
     def __process_fault_model(self):
         fault_model = self.fault_model
         altered_floats = fault_model["#alt_val"] / fault_model["#total"]
@@ -35,6 +37,9 @@ class MicroopHook():
 
     def set_critical_batches(self, critical_batches):
         self.critical_batches = critical_batches
+
+    def set_save_critical_logits(self, save_critical_logits):
+        self.save_critical_logits = save_critical_logits
 
     def hook_fn_to_inject_fault(self, module, module_input, module_output) -> None:
         print(f"\n [+] INSIDE HOOK: {module_output.shape}")
@@ -75,9 +80,9 @@ class MicroopHook():
 
         faulty_input = faulty_input.view(module_output.shape).to(device)
 
-        if self.critical_batches is not None and self.batch_counter in self.critical_batches:
+        if self.save_critical_logits and self.critical_batches is not None and self.batch_counter in self.critical_batches:
             file = f"data/relative_err_saves/faulty-{self.model_name}-{self.microop}-batch{self.batch_counter}-batchsize{self.batch_size}.pt"
-            torch.save(torch.cat((module_output, faulty_input), dim=0), file)
+            torch.save(torch.cat((module_output.unsqueeze(0), faulty_input.unsqueeze(0)), dim=0), file)
         
         self.batch_counter += 1
 
