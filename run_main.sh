@@ -34,7 +34,8 @@ device="cuda:0"
 dataset="imagenet"
 batchsize=32
 
-options="--inject-on-correct-predictions --load-critical --save-critical-logits"
+# options="--inject-on-correct-predictions --load-critical --save-critical-logits"
+options="--inject-on-correct-predictions --save-top5prob"
 
 for model in "${models[@]}"; do
     for prec in "${precision[@]}"; do
