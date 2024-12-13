@@ -31,7 +31,7 @@ def get_model(model_name: str, precision) -> torch.nn.Module:
     model.zero_grad(set_to_none=True)
     return model
 
-def get_dataset(dataset_name: str, transforms: tv_transforms.Compose, batch_size: int) -> torch.utils.data.DataLoader:
+def get_dataset(dataset_name: str, transforms: tv_transforms.Compose, batch_size: int):
     dataset_path = configs.DATASETS_DIRS[dataset_name]
     if dataset_path is None:
         raise ValueError(f"Dataset path for {dataset_name} is not defined.")
