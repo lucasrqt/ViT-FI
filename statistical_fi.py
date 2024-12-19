@@ -31,9 +31,6 @@ class MicroopHook():
         min_diff = fault_model["Q100%"]
 
         return (fault_model, altered_floats.item(), float_to_nan.item(), nb_neginf.item(), nb_posinf.item(), max_diff.item(), min_diff.item())
-    
-    def __sample_relative_errors(self, size, quantiles, percentile_values):
-        return np.interp(np.random.rand(size), quantiles, percentile_values)
 
     def set_critical_batches(self, critical_batches):
         self.critical_batches = critical_batches
@@ -63,17 +60,27 @@ class MicroopHook():
         # Randomly select a subset of the coordinates to multiply by the relative error
         # Generate cumulative distribution from percentiles
         percentiles = []
-        for i in range(0, 101, 5):
+        for i in [5, 95]:
             percentiles.append(fault_model[f"Q{i}%"].item())
-        percentile_values = np.array(percentiles[1:-1])  # Exclude Q0% and Q100% for realistic distribution
-        quantiles = np.linspace(0, 1, len(percentile_values))
+        # percentile_values = np.array(percentiles)  # Exclude Q0% and Q100% for realistic distribution
+        # quantiles = np.linspace(0, 1, len(percentile_values))
 
         # Select random elements to modify
         num_elements = int(altered_floats_percentage * faulty_input.numel())
         indices = torch.randperm(faulty_input.numel())[:num_elements].to(device)
 
         # Get random relative errors
-        relative_errors = torch.tensor(self.__sample_relative_errors(num_elements, quantiles, percentile_values), dtype=torch.float32).to(device)
+        relative_errors_indices = torch.randperm(num_elements)
+        elements_per_value = num_elements // len(percentiles)
+        remainder = num_elements % len(percentiles)
+        relative_errors = torch.empty(num_elements, dtype=torch.float32).to(device)
+
+        start = 0
+        for i, percentile in enumerate(percentiles):
+            extra = 1 if i < remainder else 0  # Distribute the remainder evenly
+            end = start + elements_per_value + extra
+            relative_errors[relative_errors_indices[start:end]] = abs(percentile)
+            start = end
 
         faulty_input = faulty_input.flatten()
         faulty_input[indices] *= (1 + relative_errors)

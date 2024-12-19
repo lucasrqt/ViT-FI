@@ -167,9 +167,9 @@ def main() -> None:
     
     print(f" [+] Injecting on {len(data_loader)} batches of size {batch_size}...")
 
-    result_file = result_data_utils.get_result_filename(model_name, dataset_name, precision, microop, fault_model_threshold)
+    result_file = result_data_utils.get_result_filename(model_name, dataset_name, precision, microop, fault_model_threshold, seed)
     result_df = result_data_utils.init_result_data(configs.RESULTS_DIR, result_file, configs.RESULT_COLUMS)
-
+    
     print(" [+] Running injections...")
     if save_top5prob:
         get_faulty_top5(model_name, microop, model_for_fault, data_loader, precision, device, batch_size)

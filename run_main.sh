@@ -4,7 +4,7 @@ script="main.py"
 
 # Run the tests
 models=(
-    "vit_base_patch16_224"
+#    "vit_base_patch16_224"
     "swin_base_patch4_window7_224"
 )
 
@@ -33,9 +33,10 @@ vit_microops=(
 device="cuda:0"
 dataset="imagenet"
 batchsize=32
+seed=29052001
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
-options="--inject-on-correct-predictions --save-top5prob"
+options="--inject-on-correct-predictions"
 
 for model in "${models[@]}"; do
     for prec in "${precision[@]}"; do
@@ -43,12 +44,12 @@ for model in "${models[@]}"; do
             if [ "$model" == "swin_base_patch4_window7_224" ]; then
                 for microop in "${swin_microops[@]}"; do
                     echo "Model: $model, Precision: $prec, Threshold: $threshold, Microop: $microop"
-                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize $options
+                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize $options --seed $seed
                 done
             else
                 for microop in "${vit_microops[@]}"; do
                     echo "Model: $model, Precision: $prec, Threshold: $threshold, Microop: $microop"
-                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize $options
+                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize $options --seed $seed
                 done
             fi
         done
