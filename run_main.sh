@@ -33,7 +33,22 @@ vit_microops=(
 device="cuda:0"
 dataset="imagenet"
 batchsize=32
-seed=29052001
+# seed=0
+seeds=(
+    0
+    493
+    # 666
+    # 31417
+    # 182036
+    # 29052001
+    # 35014520
+)
+
+targets=(
+    "FIRST"
+    "LAST"
+    "MIDDLE"
+)
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
 options="--inject-on-correct-predictions"
@@ -41,17 +56,19 @@ options="--inject-on-correct-predictions"
 for model in "${models[@]}"; do
     for prec in "${precision[@]}"; do
         for threshold in "${float_thresholds[@]}"; do
-            if [ "$model" == "swin_base_patch4_window7_224" ]; then
-                for microop in "${swin_microops[@]}"; do
-                    echo "Model: $model, Precision: $prec, Threshold: $threshold, Microop: $microop"
-                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize $options --seed $seed
+            for seed in "${seeds[@]}"; do
+                for target in "${targets[@]}"; do
+                    if [[ $model == "swin"* ]]; then
+                        for microop in "${swin_microops[@]}"; do
+                            time python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options
+                        done
+                    else
+                        for microop in "${vit_microops[@]}"; do
+                            time python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options
+                        done
+                    fi
                 done
-            else
-                for microop in "${vit_microops[@]}"; do
-                    echo "Model: $model, Precision: $prec, Threshold: $threshold, Microop: $microop"
-                    python $script -m $model -p $prec --fault-model-threshold $threshold -M $microop -d $device -D $dataset -b $batchsize $options --seed $seed
-                done
-            fi
+            done
         done
     done
 done
