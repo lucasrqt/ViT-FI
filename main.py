@@ -8,6 +8,7 @@ import result_data_utils
 import torch
 import pandas as pd
 import numpy as np
+import time
 from torch.utils.data import Subset
 
 def parse_args() -> argparse.Namespace:
@@ -18,6 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-p", "--precision", type=str, default=configs.FP32, help="Precision of the model and inputs.", choices=[configs.FP16, configs.FP32])
     parser.add_argument("-d", "--device", type=str, default=configs.GPU_DEVICE, help="Device to run the model.", choices=[configs.CPU, configs.GPU_DEVICE])
     parser.add_argument("-M", "--microop", type=str, default=None, help="Microoperation to inject the fault.", choices=configs.MICROBENCHMARK_MODULES)
+    parser.add_argument("--target-layer", type=lambda lc: statistical_fi.LayerChoice[lc], default=statistical_fi.LayerChoice.LAST, help="Target layer for the fault injection.", choices=list(statistical_fi.LayerChoice))
     parser.add_argument("-s", "--seed", type=int, default=configs.SEED, help="Random seed.")
     parser.add_argument("--fault-model-threshold", type=float, default=1e-03, help="Threshold for the fault model data.")
     parser.add_argument("--inject-on-correct-predictions", action="store_true", help="Inject faults only on correct predictions.", default=False)
@@ -61,6 +63,7 @@ def get_faulty_top5(model_name, microop, model, data_loader, precision, device, 
     model.eval()
     model.to(device)
 
+    start = time.time()
     for i, (images, labels) in enumerate(data_loader):
         if precision == configs.FP16:
             images = images.half()
@@ -88,6 +91,9 @@ def get_faulty_top5(model_name, microop, model, data_loader, precision, device, 
                 torch.save(tensor, path)
                 print(f" [+] Image {(i*batch_size)+j+1} saved.")
 
+    end = time.time()
+    print(f" [+] Time for full pass: {end-start}s")
+
 
     print(" [+] Done.")
 
@@ -108,6 +114,7 @@ def main() -> None:
     inject_on_corr_preds = args.inject_on_correct_predictions
     save_critical_logits = args.save_critical_logits
     save_top5prob = args.save_top5prob
+    target_layer = args.target_layer
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -159,7 +166,7 @@ def main() -> None:
     fault_model = statistical_fi.get_fault_model(configs.FAULT_MODEL_FILE, model_name, microop, precision, fault_model_threshold)
     if fault_model.empty:
         raise ValueError("Fault model not found.")
-    hook, handler = statistical_fi.hook_microop(model_for_fault, model_name, microop, batch_size, fault_model, dummy_input)
+    hook, handler = statistical_fi.hook_microop(model_for_fault, model_name, microop, batch_size, fault_model, dummy_input, target_layer)
     if args.load_critical:
         hook.set_critical_batches(batch_indices)
         hook.set_save_critical_logits(save_critical_logits)
@@ -167,7 +174,7 @@ def main() -> None:
     
     print(f" [+] Injecting on {len(data_loader)} batches of size {batch_size}...")
 
-    result_file = result_data_utils.get_result_filename(model_name, dataset_name, precision, microop, fault_model_threshold, seed)
+    result_file = result_data_utils.get_result_filename(model_name, dataset_name, precision, microop, fault_model_threshold, seed, target_layer)
     result_df = result_data_utils.init_result_data(configs.RESULTS_DIR, result_file, configs.RESULT_COLUMS)
     
     print(" [+] Running injections...")

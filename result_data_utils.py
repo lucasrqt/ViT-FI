@@ -1,8 +1,9 @@
 import pandas as pd
 import os
+from statistical_fi import LayerChoice
 
-def get_result_filename(model_name: str, dataset_name: str, precision: str, microop: str, float_threshold_FM: str, seed: int) -> str:
-    return f"{model_name}_{dataset_name}_{precision}_{microop}_{float_threshold_FM}_{seed}.csv"
+def get_result_filename(model_name: str, dataset_name: str, precision: str, microop: str, float_threshold_FM: str, seed: int, layer: LayerChoice) -> str:
+    return f"{model_name}_{dataset_name}_{precision}_{microop}_{float_threshold_FM}_{seed}_layer-{str(layer)}.csv"
 
 def init_result_folder(data_path: str) -> None:
     path = os.path.abspath(data_path)

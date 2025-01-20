@@ -7,8 +7,25 @@ from compare_utils import get_top_k_labels
 import time
 import sys
 import numpy as np
+import enum
 
 _LAYER_TO_HOOK = [1e-30]
+_HOOKABLE_LAYERS = []
+
+MODULE, MICROOP_SIZE, INPUT_SIZE = 0, 1, 2
+
+class LayerChoice(enum.Enum):
+    FIRST = 0
+    MIDDLE = 1
+    LAST = 2
+    SMALLEST = 3
+    LARGEST = 4
+
+    def __str__(self):
+        return str(self.name)
+    
+    def __repr__(self):
+        return str(self.name)
 
 class MicroopHook():
     def __init__(self, model_name, microop, batch_size, layer_id, fault_model):
@@ -172,12 +189,17 @@ class GetLayerSize():
         self.microop_size = 0
 
     def hook_fn_to_get_layer_size(self, module, module_input, module_output) -> None:
-        global _LAYER_TO_HOOK
+        # global _LAYER_TO_HOOK
+        global _HOOKABLE_LAYERS
         layer_num_parameters = sum(p.numel() for p in module.parameters())
         self.input_size = sum(p.numel() for p in module_input)
         self.microop_size = layer_num_parameters * self.input_size
-        if self.microop_size > _LAYER_TO_HOOK[-1]:
-            _LAYER_TO_HOOK = [module, self.microop_size, self.input_size]
+
+        _HOOKABLE_LAYERS.append((module, self.microop_size, self.input_size))
+
+        # if self.microop_size > _LAYER_TO_HOOK[-1]:
+            # _LAYER_TO_HOOK = [module, self.microop_size, self.input_size]
+
 
 
 def get_fault_model(fault_model_file, model_name, microop, precision, threshold):
@@ -202,7 +224,17 @@ def check_microop(model_name, microop):
         return ValueError(f"Model {model_name} not supported.")
 
 
-def hook_microop(model, model_name, microop, batch_size, fault_model, dummy_input) -> torch.utils.hooks.RemovableHandle:
+def select_layer(target: LayerChoice):
+    if target == LayerChoice.FIRST:
+        return _HOOKABLE_LAYERS[0][MODULE]
+    elif target == LayerChoice.MIDDLE:
+        return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 2][MODULE]
+    elif target == LayerChoice.LAST:
+        return _HOOKABLE_LAYERS[-1][MODULE]
+    else:
+        return ValueError("Invalid layer choice.")
+
+def hook_microop(model, model_name, microop, batch_size, fault_model, dummy_input, target) -> torch.utils.hooks.RemovableHandle:
     layers = list()
     handlers = list()
     for layer_id, (name, layer) in enumerate(model.named_modules()):
@@ -217,7 +249,7 @@ def hook_microop(model, model_name, microop, batch_size, fault_model, dummy_inpu
     for handler in handlers:
         handler.remove()
 
-    layer = _LAYER_TO_HOOK[0]
+    layer = select_layer(target)
     hook = MicroopHook(model_name, microop, batch_size, layer_id, fault_model)
     handler = layer.register_forward_hook(hook.hook_fn_to_inject_fault)
 
