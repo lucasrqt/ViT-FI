@@ -12,6 +12,13 @@ import enum
 _LAYER_TO_HOOK = [1e-30]
 _HOOKABLE_LAYERS = []
 
+_ALTERED_INDICES = None
+_REL_ERR_INDICES = None
+_RELATIVE_ERRORS = None
+_NEG_INF_IDX = None
+_POS_INF_IDX = None
+_NAN_IDX = None
+
 MODULE, MICROOP_SIZE, INPUT_SIZE = 0, 1, 2
 
 class LayerChoice(enum.Enum):
@@ -40,14 +47,12 @@ class MicroopHook():
 
     def __process_fault_model(self):
         fault_model = self.fault_model
-        altered_floats = fault_model["#alt_val"] / fault_model["#total"]
-        float_to_nan = fault_model["#nan"] / fault_model["#total"]
-        nb_neginf = fault_model["#neg_inf"] / fault_model["#total"]
-        nb_posinf = fault_model["#pos_inf"] / fault_model["#total"]
-        max_diff = fault_model["Q0%"]
-        min_diff = fault_model["Q100%"]
+        altered_floats = fault_model["#alt_val"]
+        float_to_nan = fault_model["#nan"]
+        nb_neginf = fault_model["#neg_inf"]
+        nb_posinf = fault_model["#pos_inf"]
 
-        return (fault_model, altered_floats.item(), float_to_nan.item(), nb_neginf.item(), nb_posinf.item(), max_diff.item(), min_diff.item())
+        return (fault_model, altered_floats.item(), float_to_nan.item(), nb_neginf.item(), nb_posinf.item())
 
     def set_critical_batches(self, critical_batches):
         self.critical_batches = critical_batches
@@ -56,7 +61,7 @@ class MicroopHook():
         self.save_critical_logits = save_critical_logits
 
     def hook_fn_to_inject_fault(self, module, module_input, module_output) -> None:
-        print(f"\n [+] INSIDE HOOK: {module_output.shape}")
+        global _ALTERED_INDICES, _RELATIVE_ERRORS, _REL_ERR_INDICES, _NEG_INF_IDX, _POS_INF_IDX, _NAN_IDX
         faulty_input = module_output.clone()
         device = module_output.get_device()
         if device == -1:
@@ -66,120 +71,58 @@ class MicroopHook():
         
         faulty_input = faulty_input.to(device)
 
-        fault_model, altered_floats_percentage, float_to_nan, nb_neginf, nb_posinf, max_diff, min_diff = self.__process_fault_model()
+        fault_model, altered_floats, float_to_nan, nb_neginf, nb_posinf = self.__process_fault_model()
 
-        # print(f" [+] microop: {self.microop}")
-        # print(f" [+] infs = {(nb_posinf + nb_neginf)*100:.6f}% nans = {(float_to_nan * 100):.6}%")
-        # print(f" [+] lagre values = {(nb_val_gt_1e30 + nb_val_lt_1e30)*100:.6f}%")
-        # sys.exit(0)
+        nb_total_faults = altered_floats + float_to_nan + nb_neginf + nb_posinf
 
-
-        # Randomly select a subset of the coordinates to multiply by the relative error
-        # Generate cumulative distribution from percentiles
-        percentiles = []
-        for i in [5, 95]:
-            percentiles.append(fault_model[f"Q{i}%"].item())
-        # percentile_values = np.array(percentiles)  # Exclude Q0% and Q100% for realistic distribution
-        # quantiles = np.linspace(0, 1, len(percentile_values))
-
+        altered_floats_ratio = (altered_floats / fault_model["#total"]).item()
+        float_to_nan_ratio = (float_to_nan / fault_model["#total"]).item()
+        nb_neginf_ratio = (nb_neginf / fault_model["#total"]).item()
+        nb_posinf_ratio = (nb_posinf / fault_model["#total"]).item()
+        total_ratio = nb_total_faults / fault_model["#total"].item()
         # Select random elements to modify
-        num_elements = int(altered_floats_percentage * faulty_input.numel())
-        indices = torch.randperm(faulty_input.numel())[:num_elements].to(device)
+        if _ALTERED_INDICES is None:
+            num_elements = int(total_ratio * faulty_input.numel())
+            _ALTERED_INDICES = torch.randperm(faulty_input.numel())[:num_elements].to(device)
+
+            start, end = 0, int(altered_floats_ratio * num_elements)
+            _REL_ERR_INDICES = _ALTERED_INDICES[start:end]
+            start = end
+            # end = start + int(float_to_nan_ratio * num_elements)
+            # _NAN_IDX = _ALTERED_INDICES[start:end]
+            # start = end
+            # end = start + int(nb_neginf_ratio * num_elements)
+            # _NEG_INF_IDX = _ALTERED_INDICES[start:end]
+            # start = end
+            # end = start + int(nb_posinf_ratio * num_elements)
+            # _POS_INF_IDX = _ALTERED_INDICES[start:end]
 
         # Get random relative errors
-        relative_errors_indices = torch.randperm(num_elements)
-        elements_per_value = num_elements // len(percentiles)
-        remainder = num_elements % len(percentiles)
-        relative_errors = torch.empty(num_elements, dtype=torch.float32).to(device)
-
-        start = 0
-        for i, percentile in enumerate(percentiles):
-            extra = 1 if i < remainder else 0  # Distribute the remainder evenly
-            end = start + elements_per_value + extra
-            relative_errors[relative_errors_indices[start:end]] = abs(percentile)
-            start = end
+        if _RELATIVE_ERRORS is None:
+            float_err = int(altered_floats_ratio * num_elements)
+            _RELATIVE_ERRORS = torch.zeros(float_err).to(device)
+            nb_bins = fault_model.columns.str.startswith('bin_').sum()
+            start, end = 0, 0
+            for i in range(nb_bins):
+                value_ratio = fault_model[f"hist_{i}"].item() / fault_model["#total"].item()
+                value = fault_model[f"bin_{i}"].item()
+                end = start + int(round(value_ratio, 0) * num_elements)
+                _RELATIVE_ERRORS[start:end] = value
+                start = end
 
         faulty_input = faulty_input.flatten()
-        faulty_input[indices] *= (1 + relative_errors)
-
+        faulty_input[_REL_ERR_INDICES] *= (1 + _RELATIVE_ERRORS)
+        # faulty_input[_NAN_IDX] = float("nan")
+        # faulty_input[_NEG_INF_IDX] = float("-inf")
+        # faulty_input[_POS_INF_IDX] = float("inf")
+        
         faulty_input = faulty_input.view(module_output.shape).to(device)
 
         if self.save_critical_logits and self.critical_batches is not None and self.batch_counter in self.critical_batches:
             file = f"data/relative_err_saves/faulty-{self.model_name}-{self.microop}-batch{self.batch_counter}-batchsize{self.batch_size}.pt"
             torch.save(torch.cat((module_output.unsqueeze(0), faulty_input.unsqueeze(0)), dim=0), file)
-        
+
         self.batch_counter += 1
-
-        # print(f" [+] FAULTY INPUT: {faulty_input.shape}")
-        # print(f" [+] IS MODIFIED: {not torch.equal(faulty_input, module_output)}")
-
-        # num_modif_neg = int(faulty_input.numel() * nb_neg)
-        # num_modif_pos = int(faulty_input.numel() * nb_pos)
-        
-        # random_neg_indices = torch.randperm(len(negative_coords))[:num_modif_neg].to(device)
-        # random_pos_indices = torch.randperm(len(positive_coords))[:num_modif_pos].to(device)
-        # flat_tensor = faulty_input.flatten().to(device)
-
-        # flat_tensor[random_neg_indices] = flat_tensor[random_neg_indices] * neg_relative_err
-        # flat_tensor[random_pos_indices] = flat_tensor[random_pos_indices] * pos_relative_err
-
-        # faulty_input = flat_tensor.view(faulty_input.shape).to(device)
-
-        # # handle nan and inf
-        # zero_coords = torch.nonzero(faulty_input == 0, as_tuple=False).to(device)
-        # non_zero_coords = torch.nonzero(faulty_input != 0, as_tuple=False).to(device)
-        # all_coords = torch.cat((zero_coords, non_zero_coords), dim=0).to(device)
-
-        # # Remove the coordinates from subset_neg_coords and subset_pos_coords from all_coords
-        # mask = ~torch.isin(all_coords, random_neg_indices).all(dim=1).to(device)
-        # all_coords = all_coords[mask]
-        # mask = ~torch.isin(all_coords, random_pos_indices).all(dim=1).to(device)
-        # all_coords = all_coords[mask]
-
-        # random_nan_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * float_to_nan)]
-        # subset_nan_coords = all_coords[random_nan_indices]
-        # for coord in subset_nan_coords:
-        #     coord = tuple(coord)
-        #     faulty_input[coord] = float("nan")
-
-        # mask = ~torch.isin(all_coords, subset_nan_coords).all(dim=1).to(device)
-        # all_coords = all_coords[mask]
-
-        # random_neginf_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_neginf)].to(device)
-        # subset_neginf_coords = all_coords[random_neginf_indices]
-
-        # random_posinf_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_posinf)].to(device)
-        # subset_posinf_coords = all_coords[random_posinf_indices]
-
-        # for coord in subset_neginf_coords:
-        #     coord = tuple(coord)
-        #     faulty_input[coord] = float("-inf")
-
-        # for coord in subset_posinf_coords:
-        #     coord = tuple(coord)
-        #     faulty_input[coord] = float("inf")
-
-        # mask = ~torch.isin(all_coords, subset_neginf_coords).all(dim=1).to(device)
-        # all_coords = all_coords[mask]
-        # mask = ~torch.isin(all_coords, subset_posinf_coords).all(dim=1).to(device)
-        # all_coords = all_coords[mask]
-
-        # # handle large values
-        # random_val_gt_1e30_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_val_gt_1e30)].to(device)
-        # subset_val_gt_1e30_coords = all_coords[random_val_gt_1e30_indices]
-
-        # random_val_lt_1e30_indices = torch.randperm(len(all_coords))[:int(faulty_input.numel() * nb_val_lt_1e30)].to(device)
-        # subset_val_lt_1e30_coords = all_coords[random_val_lt_1e30_indices]
-
-        # for coord in subset_val_gt_1e30_coords:
-        #     coord = tuple(coord)
-        #     low, high = 1e30, max_diff
-        #     faulty_input[coord] = torch.rand(1) * (high - low) + low
-
-        # for coord in subset_val_lt_1e30_coords:
-        #     coord = tuple(coord)
-        #     low, high = min_diff, -1e30
-        #     faulty_input[coord] = torch.rand(1) * (high - low) + low
 
         return faulty_input
 

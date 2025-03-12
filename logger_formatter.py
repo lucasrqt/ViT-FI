@@ -42,20 +42,24 @@ class ColoredLogger(logging.Logger):
     FORMAT = "[%(levelname)-7s] %(message)s ($BOLD%(filename)s$RESET:%(lineno)d) %(asctime)s"
     COLOR_FORMAT = ColoredFormatter.formatter_message(FORMAT)
 
-    def __init__(self, name, console_handler: logging.Handler):
+    def __init__(self, name, console_handler: logging.Handler, level):
         logging.Logger.__init__(self, name, logging.DEBUG)
         color_formatter = ColoredFormatter(self.COLOR_FORMAT)
         console_handler.setFormatter(color_formatter)
         self.addHandler(console_handler)
 
 
-def logging_setup(logger_name: str, log_file: str, enable_curses: bool) -> logging.Logger:
+def logging_setup(logger_name: str, log_file: str, enable_curses: bool, verbose: bool) -> logging.Logger:
     """Logging setup
     :return: logger object
     """
+    level = logging.INFO
+    if verbose:
+        level = logging.DEBUG
+
     # create logger
     logger = logging.getLogger(logger_name)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(level=level)
     # create file handler which logs even debug messages
     # fh = logging.FileHandler(log_file, mode='a')
     # fh.setLevel(logging.INFO)
@@ -68,7 +72,7 @@ def logging_setup(logger_name: str, log_file: str, enable_curses: bool) -> loggi
     # logger.addHandler(fh)
 
     console_handler = logging.StreamHandler()
-    console = ColoredLogger(name=logger_name, console_handler=console_handler)
+    console = ColoredLogger(name=logger_name, console_handler=console_handler, level=level)
     # noinspection PyTypeChecker
     logger.addHandler(console)
     return logger

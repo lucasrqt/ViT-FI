@@ -5,7 +5,7 @@ script="main.py"
 # Run the tests
 models=(
     "vit_base_patch16_224"
-#    "swin_base_patch4_window7_224"
+   "swin_base_patch4_window7_224"
 )
 
 precision=(
@@ -14,8 +14,8 @@ precision=(
 )
 
 float_thresholds=(
-    # "1e-04"
-    "1e-03"
+    "1e-04"
+    # "1e-03"
 )
 
 swin_microops=(
@@ -37,11 +37,15 @@ batchsize=32
 seeds=(
     0
     493
-    # 666
-    # 31417
-    # 182036
+    666
+    31417
+    182036
     29052001
-    35014520
+    # 35014520
+    # 4294967295
+    # 2796017452
+    # 1084398730
+    # 3208799631
 )
 
 targets=(
@@ -51,7 +55,7 @@ targets=(
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
-options="--inject-on-correct-predictions"
+options="--inject-on-correct-predictions --shuffle-dataset"
 
 for model in "${models[@]}"; do
     for prec in "${precision[@]}"; do
