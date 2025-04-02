@@ -118,7 +118,7 @@ class MicroopHook():
                 count = int(fault_model[f"hist_{i}"].item())
                 _RELATIVE_ERRORS = torch.cat((_RELATIVE_ERRORS, torch.full((count,), bin_value, device=device)))
 
-        rel_err = _RELATIVE_ERRORS[torch.randperm(_RELATIVE_ERRORS.numel())[:num_elements]].to(device)
+        rel_err = _RELATIVE_ERRORS[torch.randperm(_RELATIVE_ERRORS.numel())[:int(altered_floats_ratio * num_elements)]].to(device)
 
         faulty_output = faulty_output.flatten()
         faulty_output[_REL_ERR_INDICES] *= (1 + rel_err)
