@@ -62,14 +62,14 @@ class MicroopHook():
 
     def hook_fn_to_inject_fault(self, module, module_input, module_output) -> None:
         global _ALTERED_INDICES, _RELATIVE_ERRORS, _REL_ERR_INDICES, _NEG_INF_IDX, _POS_INF_IDX, _NAN_IDX
-        faulty_input = module_output.clone()
+        faulty_output = module_output.clone()
         device = module_output.get_device()
         if device == -1:
             device = "cpu"
         else:
             device = f"cuda:{device}"
         
-        faulty_input = faulty_input.to(device)
+        faulty_output = faulty_output.to(device)
 
         fault_model, altered_floats, float_to_nan, nb_neginf, nb_posinf = self.__process_fault_model()
 
@@ -80,10 +80,10 @@ class MicroopHook():
         nb_neginf_ratio = (nb_neginf / fault_model["#total"]).item()
         nb_posinf_ratio = (nb_posinf / fault_model["#total"]).item()
         total_ratio = nb_total_faults / fault_model["#total"].item()
+        num_elements = int(total_ratio * faulty_output.numel())
         # Select random elements to modify
         if _ALTERED_INDICES is None:
-            num_elements = int(total_ratio * faulty_input.numel())
-            _ALTERED_INDICES = torch.randperm(faulty_input.numel())[:num_elements].to(device)
+            _ALTERED_INDICES = torch.randperm(faulty_output.numel())[:num_elements].to(device)
 
             start, end = 0, int(altered_floats_ratio * num_elements)
             _REL_ERR_INDICES = _ALTERED_INDICES[start:end]
@@ -99,32 +99,42 @@ class MicroopHook():
 
         # Get random relative errors
         if _RELATIVE_ERRORS is None:
-            float_err = int(altered_floats_ratio * num_elements)
-            _RELATIVE_ERRORS = torch.zeros(float_err).to(device)
             nb_bins = fault_model.columns.str.startswith('bin_').sum()
-            start, end = 0, 0
-            for i in range(nb_bins):
-                value_ratio = fault_model[f"hist_{i}"].item() / fault_model["#total"].item()
-                value = fault_model[f"bin_{i}"].item()
-                end = start + int(round(value_ratio, 0) * num_elements)
-                _RELATIVE_ERRORS[start:end] = value
-                start = end
+            ### V1
+            # float_err = int(altered_floats_ratio * num_elements)
+            # _RELATIVE_ERRORS = torch.zeros(float_err).to(device)
+            # start, end = 0, 0
+            # for i in range(nb_bins):
+            #     value_ratio = fault_model[f"hist_{i}"].item() / fault_model["#total"].item()
+            #     value = fault_model[f"bin_{i}"].item()
+            #     end = start + int(round(value_ratio, 0) * num_elements)
+            #     _RELATIVE_ERRORS[start:end] = value
+            #     start = end
 
-        faulty_input = faulty_input.flatten()
-        faulty_input[_REL_ERR_INDICES] *= (1 + _RELATIVE_ERRORS)
-        # faulty_input[_NAN_IDX] = float("nan")
-        # faulty_input[_NEG_INF_IDX] = float("-inf")
-        # faulty_input[_POS_INF_IDX] = float("inf")
+            ### V2
+            _RELATIVE_ERRORS = torch.tensor([], device=device)
+            for i in range(nb_bins):
+                bin_value = fault_model[f"bin_{i}"].item()
+                count = int(fault_model[f"hist_{i}"].item())
+                _RELATIVE_ERRORS = torch.cat((_RELATIVE_ERRORS, torch.full((count,), bin_value, device=device)))
+
+        rel_err = _RELATIVE_ERRORS[torch.randperm(_RELATIVE_ERRORS.numel())[:num_elements]].to(device)
+
+        faulty_output = faulty_output.flatten()
+        faulty_output[_REL_ERR_INDICES] *= (1 + rel_err)
+        # faulty_output[_NAN_IDX] = float("nan")
+        # faulty_output[_NEG_INF_IDX] = float("-inf")
+        # faulty_output[_POS_INF_IDX] = float("inf")
         
-        faulty_input = faulty_input.view(module_output.shape).to(device)
+        faulty_output = faulty_output.view(module_output.shape).to(device)
 
         if self.save_critical_logits and self.critical_batches is not None and self.batch_counter in self.critical_batches:
             file = f"data/relative_err_saves/faulty-{self.model_name}-{self.microop}-batch{self.batch_counter}-batchsize{self.batch_size}.pt"
-            torch.save(torch.cat((module_output.unsqueeze(0), faulty_input.unsqueeze(0)), dim=0), file)
+            torch.save(torch.cat((module_output.unsqueeze(0), faulty_output.unsqueeze(0)), dim=0), file)
 
         self.batch_counter += 1
 
-        return faulty_input
+        return faulty_output
 
 class GetLayerSize():
     def __init__(self):
