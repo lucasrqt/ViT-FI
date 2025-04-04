@@ -36,18 +36,18 @@ batchsize=32
 # seed=0
 seeds=(
     0
-    # 493
-    # 666
-    # 31417
-    # 182036
-    # 29052001
-    # 35014520
+    493
+    666
+    31417
+    182036
+    29052001
+    35014520
 )
 
 targets=(
-    "FIRST"
+    # "FIRST"
     "LAST"
-    "MIDDLE"
+    # "MIDDLE"
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
