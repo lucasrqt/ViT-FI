@@ -60,77 +60,51 @@ class MicroopHook():
     def set_save_critical_logits(self, save_critical_logits):
         self.save_critical_logits = save_critical_logits
 
+
     def hook_fn_to_inject_fault(self, module, module_input, module_output) -> None:
-        global _ALTERED_INDICES, _RELATIVE_ERRORS, _REL_ERR_INDICES, _NEG_INF_IDX, _POS_INF_IDX, _NAN_IDX
-        faulty_output = module_output.clone()
-        device = module_output.get_device()
-        if device == -1:
-            device = "cpu"
-        else:
-            device = f"cuda:{device}"
-        
-        faulty_output = faulty_output.to(device)
+        # Move the output to CPU for computations
+        faulty_output = module_output.clone().cpu()
 
         fault_model, altered_floats, float_to_nan, nb_neginf, nb_posinf = self.__process_fault_model()
-
         nb_total_faults = altered_floats + float_to_nan + nb_neginf + nb_posinf
 
-        altered_floats_ratio = (altered_floats / fault_model["#total"]).item()
-        float_to_nan_ratio = (float_to_nan / fault_model["#total"]).item()
-        nb_neginf_ratio = (nb_neginf / fault_model["#total"]).item()
-        nb_posinf_ratio = (nb_posinf / fault_model["#total"]).item()
+        altered_floats_ratio = altered_floats / fault_model["#total"].item()
+        float_to_nan_ratio = float_to_nan / fault_model["#total"].item()
+        nb_neginf_ratio = nb_neginf / fault_model["#total"].item()
+        nb_posinf_ratio = nb_posinf / fault_model["#total"].item()
         total_ratio = nb_total_faults / fault_model["#total"].item()
         num_elements = int(total_ratio * faulty_output.numel())
-        # Select random elements to modify
-        if _ALTERED_INDICES is None:
-            _ALTERED_INDICES = torch.randperm(faulty_output.numel())[:num_elements].to(device)
 
-            start, end = 0, int(altered_floats_ratio * num_elements)
-            _REL_ERR_INDICES = _ALTERED_INDICES[start:end]
-            start = end
-            # end = start + int(float_to_nan_ratio * num_elements)
-            # _NAN_IDX = _ALTERED_INDICES[start:end]
-            # start = end
-            # end = start + int(nb_neginf_ratio * num_elements)
-            # _NEG_INF_IDX = _ALTERED_INDICES[start:end]
-            # start = end
-            # end = start + int(nb_posinf_ratio * num_elements)
-            # _POS_INF_IDX = _ALTERED_INDICES[start:end]
+        # Select random elements to modify
+        if not hasattr(self, '_altered_indices') or self._altered_indices is None:
+            self._altered_indices = torch.randperm(faulty_output.numel())[:num_elements]
+
+        start, end = 0, int(altered_floats_ratio * num_elements)
+        rel_err_indices = self._altered_indices[start:end]
 
         # Get random relative errors
-        if _RELATIVE_ERRORS is None:
+        if not hasattr(self, '_relative_errors') or self._relative_errors is None:
             nb_bins = fault_model.columns.str.startswith('bin_').sum()
-            ### V1
-            # float_err = int(altered_floats_ratio * num_elements)
-            # _RELATIVE_ERRORS = torch.zeros(float_err).to(device)
-            # start, end = 0, 0
-            # for i in range(nb_bins):
-            #     value_ratio = fault_model[f"hist_{i}"].item() / fault_model["#total"].item()
-            #     value = fault_model[f"bin_{i}"].item()
-            #     end = start + int(round(value_ratio, 0) * num_elements)
-            #     _RELATIVE_ERRORS[start:end] = value
-            #     start = end
+            if not hasattr(self, '_bins') or self._bins is None:
+                self._bins = torch.tensor(
+                    [fault_model[f"bin_{i}"].item() for i in range(nb_bins)]
+                )
+                counts = torch.tensor(
+                    [fault_model[f"hist_{i}"].item() for i in range(nb_bins)], dtype=torch.float
+                )
+                probs = counts / counts.sum()
+                self._probs = probs
 
-            ### V2
-            _RELATIVE_ERRORS = torch.tensor([], device=device)
-            for i in range(nb_bins):
-                bin_value = fault_model[f"bin_{i}"].item()
-                count = int(fault_model[f"hist_{i}"].item())
-                _RELATIVE_ERRORS = torch.cat((_RELATIVE_ERRORS, torch.full((count,), bin_value, device=device)))
-
-        rel_err = _RELATIVE_ERRORS[torch.randperm(_RELATIVE_ERRORS.numel())[:int(altered_floats_ratio * num_elements)]].to(device)
+        num_rel_errors = int(altered_floats_ratio * num_elements)
+        rel_err = self._bins[torch.multinomial(self._probs, num_rel_errors, replacement=True)]
+        # rel_err = self._relative_errors[torch.randperm(self._relative_errors.numel())[:int(altered_floats_ratio * num_elements)]]
 
         faulty_output = faulty_output.flatten()
-        faulty_output[_REL_ERR_INDICES] *= (1 + rel_err)
-        # faulty_output[_NAN_IDX] = float("nan")
-        # faulty_output[_NEG_INF_IDX] = float("-inf")
-        # faulty_output[_POS_INF_IDX] = float("inf")
-        
-        faulty_output = faulty_output.view(module_output.shape).to(device)
+        faulty_output[rel_err_indices] *= (1 + rel_err)
+        faulty_output = faulty_output.view(module_output.shape)
 
-        if self.save_critical_logits and self.critical_batches is not None and self.batch_counter in self.critical_batches:
-            file = f"data/relative_err_saves/faulty-{self.model_name}-{self.microop}-batch{self.batch_counter}-batchsize{self.batch_size}.pt"
-            torch.save(torch.cat((module_output.unsqueeze(0), faulty_output.unsqueeze(0)), dim=0), file)
+        # Move the output back to the original device
+        faulty_output = faulty_output.to(module_output.device)
 
         self.batch_counter += 1
 
