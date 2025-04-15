@@ -45,8 +45,8 @@ seeds=(
     # 666
     # 31417
     182036
-    29052001
-    # 35014520
+    # 29052001
+    35014520
 )
 
 targets=(
@@ -56,7 +56,8 @@ targets=(
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
-options="--inject-on-correct-predictions --shuffle-dataset"
+# options="--inject-on-correct-predictions --shuffle-dataset"
+options="--inject-on-correct-predictions"
 
 # creating folder for results
 current_time=$(date "+%Y-%m-%d-%H-%M-%S")
@@ -72,13 +73,13 @@ for model in "${models[@]}"; do
                             for microop in "${swin_microops[@]}"; do
                                 time python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                 # echo "python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target".csv data/"$current_time"_campaign/
+                                mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target"_it-"$it".csv data/"$current_time"_campaign/
                             done
                         else
                             for microop in "${vit_microops[@]}"; do
                                 time python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                 # echo "python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target".csv data/"$current_time"_campaign/
+                                mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target"_it-"$it".csv data/"$current_time"_campaign/
                             done
                         fi
                     done

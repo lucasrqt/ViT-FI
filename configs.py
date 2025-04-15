@@ -250,4 +250,5 @@ FAULT_MODEL_FILE = "beam_fault_model.csv"
 
 # TopK related
 TOP_1 = 1
+TOP_2 = 2
 TOP_5 = 5

@@ -2,7 +2,7 @@ import torch
 import configs
 import os
 import pandas as pd
-from utils.compare_utils import get_top_k_labels
+from utils.compare_utils import get_top_k_labels, get_top_k_probs
 import enum
 
 _LAYER_TO_HOOK = [1e-30]
@@ -400,4 +400,5 @@ def run_inference(model, images, device):
         if "cuda" in device:
             torch.cuda.synchronize()
         out_top_k = get_top_k_labels(output, configs.TOP_1)
-        return out_top_k
+        out_top_k_prob = get_top_k_probs(output, configs.TOP_2)
+        return out_top_k, out_top_k_prob

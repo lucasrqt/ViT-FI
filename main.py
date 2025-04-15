@@ -47,10 +47,20 @@ def run_injections(
         labels = labels.to(device)
 
         # microop = statistical_fi.select_microop(model_name)
-        out_wo_fault = statistical_fi.run_inference(model, images, device).squeeze()
-        out_with_fault = statistical_fi.run_inference(
+        out_wo_fault, out_prob_wo_fault = statistical_fi.run_inference(
+            model, images, device
+        )
+        out_wo_fault, out_prob_wo_fault = (
+            out_wo_fault.squeeze(),
+            out_prob_wo_fault.squeeze(),
+        )
+        out_with_fault, out_prob_w_fault = statistical_fi.run_inference(
             model_for_fault, images, device
-        ).squeeze()
+        )
+        out_with_fault, out_prob_w_fault = (
+            out_with_fault.squeeze(),
+            out_prob_w_fault.squeeze(),
+        )
 
         logger.debug("-" * 80)
         logger.debug(f"Batch {i} - Microop: {microop}")
@@ -61,13 +71,13 @@ def run_injections(
 
             result_df = result_data_utils.append_row(
                 result_df,
-                model_name,
-                dataset_name,
-                precision,
-                microop,
                 labels[j].item(),
                 out_wo_fault[j].item(),
                 out_with_fault[j].item(),
+                out_prob_wo_fault[j][0].item(),
+                out_prob_wo_fault[j][1].item(),
+                out_prob_w_fault[j][0].item(),
+                out_prob_w_fault[j][1].item(),
             )
             result_data_utils.save_result_data(
                 pd.DataFrame(result_df), configs.RESULTS_DIR, result_file
@@ -75,9 +85,9 @@ def run_injections(
 
         TIME_MEASURE.append(time.time() - start)
 
-        # if i == 3:
-        #     logger.info("Stopping after 30 batches.")
-        #     break
+        if i == 1:
+            logger.info("Stopping after 30 batches.")
+            break
 
     logger.info("Done.")
 
@@ -237,6 +247,7 @@ def main() -> None:
         fault_model_threshold,
         seed,
         target_layer,
+        injection_type,
     )
     result_df = result_data_utils.init_result_data(
         configs.RESULTS_DIR, result_file, configs.RESULT_COLUMS
