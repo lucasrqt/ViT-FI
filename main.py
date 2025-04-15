@@ -11,7 +11,7 @@ import time
 from statistics import mean
 import os
 import cli.logger_formatter as logger_formatter
-from cli.parsers import parse_args
+from cli.parsers import MainParser
 
 TIME_MEASURE = []
 
@@ -75,7 +75,7 @@ def run_injections(
 
         TIME_MEASURE.append(time.time() - start)
 
-        # if i == 29:
+        # if i == 3:
         #     logger.info("Stopping after 30 batches.")
         #     break
 
@@ -127,7 +127,9 @@ def get_faulty_top5(
 
 def main() -> None:
     global TIME_MEASURE
-    args = parse_args()
+
+    parser = MainParser()
+    args = parser.parse_args()
 
     # Parse arguments
     precision = args.precision
@@ -144,6 +146,7 @@ def main() -> None:
     save_top5prob = args.save_top5prob
     target_layer = args.target_layer
     verbose = args.verbose
+    injection_type = args.injection_type
 
     logger = logger_formatter.logging_setup(__name__, None, False, verbose)
 
@@ -213,9 +216,11 @@ def main() -> None:
         model_name,
         microop,
         batch_size,
+        len(subset),
         fault_model,
         dummy_input,
         target_layer,
+        injection_type,
     )
     if args.load_critical:
         hook.set_critical_batches(batch_indices)

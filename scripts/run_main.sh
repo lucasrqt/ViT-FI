@@ -30,18 +30,23 @@ vit_microops=(
     "Mlp"
 )
 
+injection_types=(
+    "RANDOM"
+    "FIXED"
+)
+
 device="cuda:0"
 dataset="imagenet"
 batchsize=32
 # seed=0
 seeds=(
     0
-    493
-    666
-    31417
+    # 493
+    # 666
+    # 31417
     182036
     29052001
-    35014520
+    # 35014520
 )
 
 targets=(
@@ -53,20 +58,30 @@ targets=(
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
 options="--inject-on-correct-predictions --shuffle-dataset"
 
+# creating folder for results
+current_time=$(date "+%Y-%m-%d-%H-%M-%S")
+mkdir -p data/"$current_time"_campaign
+
 for model in "${models[@]}"; do
     for prec in "${precision[@]}"; do
         for threshold in "${float_thresholds[@]}"; do
             for seed in "${seeds[@]}"; do
                 for target in "${targets[@]}"; do
-                    if [[ $model == "swin"* ]]; then
-                        for microop in "${swin_microops[@]}"; do
-                            time python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options
-                        done
-                    else
-                        for microop in "${vit_microops[@]}"; do
-                            time python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options
-                        done
-                    fi
+                    for it in "${injection_types[@]}"; do
+                        if [[ $model == "swin"* ]]; then
+                            for microop in "${swin_microops[@]}"; do
+                                time python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
+                                # echo "python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
+                                mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target".csv data/"$current_time"_campaign/
+                            done
+                        else
+                            for microop in "${vit_microops[@]}"; do
+                                time python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
+                                # echo "python $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
+                                mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target".csv data/"$current_time"_campaign/
+                            done
+                        fi
+                    done
                 done
             done
         done
