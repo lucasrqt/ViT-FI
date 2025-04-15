@@ -85,9 +85,9 @@ def run_injections(
 
         TIME_MEASURE.append(time.time() - start)
 
-        if i == 1:
-            logger.info("Stopping after 30 batches.")
-            break
+        # if i == 1:
+        #     logger.info("Stopping after 30 batches.")
+        #     break
 
     logger.info("Done.")
 
