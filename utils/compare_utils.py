@@ -1,5 +1,6 @@
 import torch
 
+
 def equal(rhs: torch.Tensor, lhs: torch.Tensor, threshold: float = 0) -> bool:
     """Compare based or not in a threshold, if threshold is none then it is equal comparison"""
     if threshold > 0:
@@ -11,6 +12,11 @@ def equal(rhs: torch.Tensor, lhs: torch.Tensor, threshold: float = 0) -> bool:
 def get_top_k_labels(tensor: torch.tensor, top_k: int) -> torch.tensor:
     proba = torch.nn.functional.softmax(tensor, dim=1)
     return torch.topk(proba, k=top_k).indices.squeeze(0)
+
+
+def get_top_k_probs(tensor: torch.tensor, top_k: int) -> torch.tensor:
+    proba = torch.nn.functional.softmax(tensor, dim=1)
+    return torch.topk(proba, k=top_k).values.squeeze(0)
 
 
 def compare_classification(
@@ -39,13 +45,15 @@ def compare_classification(
 
     return errors
 
+
 ############################################################################################################
 # -- For Grounding Dino
 
+
 # Convert from (x, y, w, h) to (x1, y1, x2, y2)
 def xywh_to_xyxy(box: torch.Tensor) -> torch.Tensor:
-    box[:2] -= box[2:] / 2   # (x1, y1) = (x - w/2, y - h/2)
-    box[2:] += box[:2]       # (x2, y2) = (x + w/2, y + h/2)
+    box[:2] -= box[2:] / 2  # (x1, y1) = (x - w/2, y - h/2)
+    box[2:] += box[:2]  # (x2, y2) = (x + w/2, y + h/2)
     return box
 
 
@@ -61,8 +69,9 @@ def calculate_iou(box1: torch.Tensor, box2: torch.Tensor) -> float:
     inter_y2 = torch.min(box1[3], box2[3])
 
     # Compute intersection area
-    inter_area = torch.clamp(inter_x2 - inter_x1, min=0) * \
-        torch.clamp(inter_y2 - inter_y1, min=0)
+    inter_area = torch.clamp(inter_x2 - inter_x1, min=0) * torch.clamp(
+        inter_y2 - inter_y1, min=0
+    )
 
     # Compute the areas of both boxes
     box1_area = (box1[2] - box1[0]) * (box1[3] - box1[1])
@@ -75,8 +84,9 @@ def calculate_iou(box1: torch.Tensor, box2: torch.Tensor) -> float:
     iou = inter_area / union_area
     return iou
 
+
 def count_elements(lst):
-    """ Count the number of each key in a dictionnary. """
+    """Count the number of each key in a dictionnary."""
     counts = {}
     for elem in lst:
         if elem in counts:
