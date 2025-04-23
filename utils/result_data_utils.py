@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 from statistical_fi import LayerChoice, InjectionType
+from input_selection import InputSelectionMethod
 
 
 def get_result_filename(
@@ -60,3 +61,28 @@ def append_row(
 def save_result_data(result_df: pd.DataFrame, data_path: str, result_file: str) -> None:
     result_file_path = os.path.join(data_path, result_file)
     result_df.to_csv(result_file_path, index=False)
+
+
+def get_input_selection_resfile(
+    model: str,
+    dataset: str,
+    precision: str,
+    seed: int,
+    is_type: InputSelectionMethod,
+) -> InputSelectionMethod:
+    """
+    Get the input selection result file name based on the model, dataset, precision, input selection method, and seed.
+    """
+    return f"{model}-{dataset}-{precision}-{seed}-{str(is_type)}.csv"
+
+
+def input_selection_append_row(
+    df,
+    variance,
+) -> pd.DataFrame:
+    df.append(
+        {
+            "variance": variance,
+        }
+    )
+    return df

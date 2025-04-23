@@ -252,3 +252,8 @@ FAULT_MODEL_FILE = "beam_fault_model.csv"
 TOP_1 = 1
 TOP_2 = 2
 TOP_5 = 5
+
+
+# INPUT SELECTION RELATED
+K = 50  # number of passes, source: https://dl.acm.org/doi/10.1145/3417330
+INPUT_SELECTION_PATH = "input_selection"

@@ -1,6 +1,9 @@
 import argparse
 import configs
 import statistical_fi
+from utils.input_selection import InputSelectionMethod
+
+# TODO: class GlobalParser
 
 
 class MainParser:
@@ -128,5 +131,81 @@ class InputSelectionParser:
             description="Generate input selection for DNN testing.",
             add_help=True,
         )
-
+        parser.add_argument(
+            "-m",
+            "--model",
+            type=str,
+            default=configs.VIT_BASE_PATCH16_224,
+            help="Model name.",
+            choices=configs.VIT_CLASSIFICATION_CONFIGS,
+        )
+        parser.add_argument(
+            "-D",
+            "--dataset",
+            type=str,
+            default=configs.IMAGENET,
+            help="Dataset name.",
+            choices=[configs.IMAGENET, configs.COCO, configs.CIFAR10],
+        )
+        parser.add_argument(
+            "-b",
+            "--batch-size",
+            type=int,
+            default=configs.DEFAULT_BATCH_SIZE,
+            help="Batch size.",
+        )
+        parser.add_argument(
+            "-p",
+            "--precision",
+            type=str,
+            default=configs.FP32,
+            help="Precision of the model and inputs.",
+            choices=[configs.FP16, configs.FP32],
+        )
+        parser.add_argument(
+            "-d",
+            "--device",
+            type=str,
+            default=configs.GPU_DEVICE,
+            help="Device to run the model.",
+            choices=[
+                configs.CPU,
+                configs.GPU_DEVICE,
+                configs.GPU_DEVICE1,
+                configs.GPU_DEVICE2,
+                configs.GPU_DEVICE3,
+            ],
+        )
+        parser.add_argument(
+            "-v", "--verbose", action="store_true", help="Verbose mode.", default=False
+        )
+        parser.add_argument(
+            "-s", "--seed", type=int, default=configs.SEED, help="Random seed."
+        )
+        parser.add_argument(
+            "-S",
+            "--shuffle-dataset",
+            default=False,
+            action="store_true",
+            help="Shuffle the dataset or not.",
+        )
+        parser.add_argument(
+            "--method",
+            type=lambda ism: InputSelectionMethod[ism],
+            default=InputSelectionMethod.MAX_P,
+            help="Input selection method.",
+            choices=list(InputSelectionMethod),
+        )
+        parser.add_argument(
+            "--number-of-passes",
+            type=int,
+            default=configs.K,
+            help=f"Number of passes for the input selection method (used for {str(InputSelectionMethod.VARIANCE)}).",
+        )
+        parser.add_argument(
+            "--load-correct-predictions",
+            action="store_true",
+            help="Load only correctly predicted inputs.",
+            default=True,
+        )
         return parser.parse_args()
