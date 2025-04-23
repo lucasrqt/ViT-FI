@@ -8,6 +8,9 @@ MINIMUM_DEVICE_CAPABILITY_TORCH_COMPILE = 7  # Volta
 CLASSIFICATION_CRITICAL_TOP_K = 1
 # FORCE the gpu to be present
 GPU_DEVICE = "cuda:0"
+GPU_DEVICE1 = "cuda:1"
+GPU_DEVICE2 = "cuda:2"
+GPU_DEVICE3 = "cuda:3"
 CPU = "cpu"
 
 # INJECTION TYPES
@@ -15,20 +18,21 @@ EM, NEUTRONS = "em", "neutrons"
 ALL_INJECTION_TYPES = [EM, NEUTRONS]
 
 # code types that can be evaluated
-GROUNDING_DINO, MAXIMALS, SELECTIVE_ECC, VITS, GEMM = "grounding_dino", "maximals", "selective_ecc", "vits", "gemm"
+GROUNDING_DINO, MAXIMALS, SELECTIVE_ECC, VITS, GEMM = (
+    "grounding_dino",
+    "maximals",
+    "selective_ecc",
+    "vits",
+    "gemm",
+)
 MICROBENCHMARK = "microbenchmark"
 
-ALL_SETUP_TYPES = [
-    GROUNDING_DINO, MAXIMALS, SELECTIVE_ECC, VITS, MICROBENCHMARK, GEMM
-]
+ALL_SETUP_TYPES = [GROUNDING_DINO, MAXIMALS, SELECTIVE_ECC, VITS, MICROBENCHMARK, GEMM]
 
 # Classification CNNs
 RESNET50D_IMAGENET_TIMM = "resnet50d"
 EFFICIENTNET_B7_TIMM = "tf_efficientnet_b7"
-CNN_CONFIGS = [
-    RESNET50D_IMAGENET_TIMM,
-    EFFICIENTNET_B7_TIMM
-]
+CNN_CONFIGS = [RESNET50D_IMAGENET_TIMM, EFFICIENTNET_B7_TIMM]
 
 # default batch size
 DEFAULT_BATCH_SIZE = 32
@@ -52,22 +56,30 @@ VIT_HUGE_PATCH14_CLIP_224 = "vit_huge_patch14_clip_224.laion2b_ft_in12k_in1k"
 # Max vit
 # https://huggingface.co/timm/maxvit_large_tf_384.in21k_ft_in1k
 # https://huggingface.co/timm/maxvit_large_tf_512.in21k_ft_in1k
-MAXVIT_LARGE_TF_384 = 'maxvit_large_tf_384.in21k_ft_in1k'
-MAXVIT_LARGE_TF_512 = 'maxvit_large_tf_512.in21k_ft_in1k'
+MAXVIT_LARGE_TF_384 = "maxvit_large_tf_384.in21k_ft_in1k"
+MAXVIT_LARGE_TF_512 = "maxvit_large_tf_512.in21k_ft_in1k"
 # Davit
 # https://huggingface.co/timm/davit_small.msft_in1k
 # https://huggingface.co/timm/davit_base.msft_in1k
-DAVIT_BASE = 'davit_base.msft_in1k'
-DAVIT_SMALL = 'davit_small.msft_in1k'
+DAVIT_BASE = "davit_base.msft_in1k"
+DAVIT_SMALL = "davit_small.msft_in1k"
 # SwinV2
 # https://huggingface.co/timm/swinv2_base_window12to16_192to256.ms_in22k_ft_in1k
 # https://huggingface.co/timm/swinv2_base_window12to24_192to384.ms_in22k_ft_in1k
 # https://huggingface.co/timm/swinv2_large_window12to16_192to256.ms_in22k_ft_in1k
 # https://huggingface.co/timm/swinv2_large_window12to24_192to384.ms_in22k_ft_in1k
-SWINV2_BASE_WINDOW12TO16_192to256_22KFT1K = 'swinv2_base_window12to16_192to256.ms_in22k_ft_in1k'
-SWINV2_BASE_WINDOW12TO24_192to384_22KFT1K = 'swinv2_base_window12to24_192to384.ms_in22k_ft_in1k'
-SWINV2_LARGE_WINDOW12TO16_192to256_22KFT1K = 'swinv2_large_window12to16_192to256.ms_in22k_ft_in1k'
-SWINV2_LARGE_WINDOW12TO24_192to384_22KFT1K = 'swinv2_large_window12to24_192to384.ms_in22k_ft_in1k'
+SWINV2_BASE_WINDOW12TO16_192to256_22KFT1K = (
+    "swinv2_base_window12to16_192to256.ms_in22k_ft_in1k"
+)
+SWINV2_BASE_WINDOW12TO24_192to384_22KFT1K = (
+    "swinv2_base_window12to24_192to384.ms_in22k_ft_in1k"
+)
+SWINV2_LARGE_WINDOW12TO16_192to256_22KFT1K = (
+    "swinv2_large_window12to16_192to256.ms_in22k_ft_in1k"
+)
+SWINV2_LARGE_WINDOW12TO24_192to384_22KFT1K = (
+    "swinv2_large_window12to24_192to384.ms_in22k_ft_in1k"
+)
 # FasterTransformer Swin models
 SWIN_BASE_PATCH4_WINDOW12_384 = "swin_base_patch4_window12_384"
 SWIN_BASE_PATCH4_WINDOW7_224 = "swin_base_patch4_window7_224"
@@ -136,21 +148,20 @@ INT8_MODELS = [
 GROUNDING_DINO_WEIGHTS_PATH = "data/grounding_dino_weights/"
 GROUNDING_DINO_SWINT_OGC = "groundingdino_swint_ogc"
 GROUNDING_DINO_SWINB_COGCOOR = "groundingdino_swinb_cogcoor"
-VITS_MULTIMODAL_CONFIGS = [
-    GROUNDING_DINO_SWINT_OGC,
-    GROUNDING_DINO_SWINB_COGCOOR
-]
+VITS_MULTIMODAL_CONFIGS = [GROUNDING_DINO_SWINT_OGC, GROUNDING_DINO_SWINB_COGCOOR]
 
 VITS_MULTIMODAL_CONFIGS_PATHS = {
     GROUNDING_DINO_SWINT_OGC: f"GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py",
-    GROUNDING_DINO_SWINB_COGCOOR: f"GroundingDINO/groundingdino/config/GroundingDINO_SwinB_cfg.py"
+    GROUNDING_DINO_SWINB_COGCOOR: f"GroundingDINO/groundingdino/config/GroundingDINO_SwinB_cfg.py",
 }
 
 BOX_THRESHOLD = 0.3
 TEXT_THRESHOLD = 0.25
 IOU_THRESHOLD = 0.75
 
-ALL_POSSIBLE_MODELS = CNN_CONFIGS + VIT_CLASSIFICATION_CONFIGS + VITS_MULTIMODAL_CONFIGS + [GEMM]
+ALL_POSSIBLE_MODELS = (
+    CNN_CONFIGS + VIT_CLASSIFICATION_CONFIGS + VITS_MULTIMODAL_CONFIGS + [GEMM]
+)
 
 # This max size will determine the max number of images in all datasets
 DATASET_MAX_SIZE = 50000
@@ -174,7 +185,7 @@ DATASETS_DIRS = {
     COCO: COCO_DATASET_VAL,
     CIFAR10: CIFAR_DATASET_DIR,
     CIFAR100: CIFAR_DATASET_DIR,
-    CUSTOM_DATASET: None
+    CUSTOM_DATASET: None,
 }
 
 
@@ -187,13 +198,11 @@ SEED = TORCH_SEED
 
 FP32, FP16, BFLOAT16, INT8 = "fp32", "fp16", "bfloat16", "int8"
 
-ALLOWED_MODEL_PRECISIONS = [
-    FP32, FP16, BFLOAT16, INT8
-]
+ALLOWED_MODEL_PRECISIONS = [FP32, FP16, BFLOAT16, INT8]
 
 # Micro benchmarks setup
-ATTENTION, BLOCK, MLP, WINDOW_ATTENTION = 'Attention', 'Block', 'Mlp', 'WindowAttention'
-SWIN_BLOCK = 'SwinTransformerBlock'
+ATTENTION, BLOCK, MLP, WINDOW_ATTENTION = "Attention", "Block", "Mlp", "WindowAttention"
+SWIN_BLOCK = "SwinTransformerBlock"
 SWIN_MODULES = [MLP, WINDOW_ATTENTION, SWIN_BLOCK]
 VIT_MODULES = [ATTENTION, BLOCK, MLP]
 MICROBENCHMARK_MODULES = [ATTENTION, BLOCK, MLP, WINDOW_ATTENTION, SWIN_BLOCK]
@@ -226,7 +235,7 @@ FLOAT_THRESHOLD = 1e-3
 RESULTS_DIR = "data"
 RESULTS_FILE = "results.csv"
 RESULT_COLUMS = [
-    "model", 
+    "model",
     "dataset",
     "precision",
     "microop",
@@ -241,4 +250,10 @@ FAULT_MODEL_FILE = "beam_fault_model.csv"
 
 # TopK related
 TOP_1 = 1
+TOP_2 = 2
 TOP_5 = 5
+
+
+# INPUT SELECTION RELATED
+K = 50  # number of passes, source: https://dl.acm.org/doi/10.1145/3417330
+INPUT_SELECTION_PATH = "input_selection"

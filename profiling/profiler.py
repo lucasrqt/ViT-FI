@@ -1,8 +1,19 @@
 #! /usr/bin/env python3
 
+import os
+import sys
+
+sys.path.append(os.path.abspath(".."))
+sys.path.append(os.path.abspath(os.path.join("..", "utils")))
+
 import configs
 import model_utils
-from torch.profiler import profile, record_function, ProfilerActivity, tensorboard_trace_handler
+from torch.profiler import (
+    profile,
+    record_function,
+    ProfilerActivity,
+    tensorboard_trace_handler,
+)
 
 MODELS = [
     configs.VIT_BASE_PATCH16_224,
@@ -11,6 +22,7 @@ MODELS = [
 
 BATCH_SIZE = 32
 DATASET = "imagenet"
+
 
 def main() -> None:
     sort_by_keyword = configs.GPU_DEVICE[:-2] + "_time_total"
@@ -24,18 +36,19 @@ def main() -> None:
         inputs, _ = next(iter(test_loader))
         inputs = inputs.to(configs.GPU_DEVICE)
 
-        with profile(activities=activities,
-                    on_trace_ready=tensorboard_trace_handler('./log'),
-                    record_shapes=True,
-                    with_stack=True) as prof:
+        with profile(
+            activities=activities,
+            on_trace_ready=tensorboard_trace_handler("./log"),
+            record_shapes=True,
+            with_stack=True,
+        ) as prof:
             with record_function("model_inference"):
                 model(inputs)
-        
-        print("="*20, model_name, "="*20)
+
+        print("=" * 20, model_name, "=" * 20)
         # print(prof.key_averages().table(sort_by=sort_by_keyword))
         print(prof.key_averages().table(sort_by=sort_by_keyword, row_limit=10))
         # prof.export_chrome_trace(f"data/profiles/{model_name}_trace.json")
-
 
 
 if __name__ == "__main__":
