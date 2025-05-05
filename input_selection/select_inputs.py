@@ -79,13 +79,22 @@ def main():
     )
 
     logger.info("Input selection init...")
-    input_selection = InputSelectionFactory.create(
-        input_selection_method,
-        model,
+    # input_selection = InputSelectionFactory.create(
+    # input_selection_method,
+    # model,
+    # data_loader,
+    # num_classes,
+    # result_df,
+    # k=configs.K,
+    # device=device,
+    # )
+
+    input_selection = DSA(
         data_loader,
-        num_classes,
-        result_df,
-        k=configs.K,
+        data_loader,
+        model,
+        model_name,
+        os.path.join("..", configs.RESULTS_DIR, "input_selection", "dsa"),
         device=device,
     )
 
