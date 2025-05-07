@@ -1,7 +1,10 @@
 import pandas as pd
 import os
+import sys
+
+sys.path.append(os.path.abspath(".."))
+
 from statistical_fi import LayerChoice, InjectionType
-from input_selection import InputSelectionMethod
 
 
 def get_result_filename(
@@ -68,8 +71,8 @@ def get_input_selection_resfile(
     dataset: str,
     precision: str,
     seed: int,
-    is_type: InputSelectionMethod,
-) -> InputSelectionMethod:
+    is_type,
+):
     """
     Get the input selection result file name based on the model, dataset, precision, input selection method, and seed.
     """
