@@ -208,4 +208,16 @@ class InputSelectionParser:
             help="Load only correctly predicted inputs.",
             default=True,
         )
+        parser.add_argument(
+            "--min-batch",
+            type=int,
+            default=0,
+            help="Min bound of ranges of batch to compute the training ATs."
+        )
+        parser.add_argument(
+            "--max-batch",
+            type=int,
+            default=0,
+            help="Max bound of ranges of batch to compute the training ATs."
+        )
         return parser.parse_args()

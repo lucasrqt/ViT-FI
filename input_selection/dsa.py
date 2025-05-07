@@ -15,7 +15,7 @@ class DSA(InputSelection):
     """
 
     def __init__(
-        self, train_loader, val_loader, model, model_name, save_path, device=configs.CPU
+        self, train_loader, val_loader, model, model_name, save_path, device=configs.CPU, min_batch: int = 0, max_batch: int = 0
     ):
         super().__init__(method=InputSelectionMethod.DSA)
         self.train_loader = train_loader
@@ -26,6 +26,8 @@ class DSA(InputSelection):
         self.hook = None
         self.handler = None
         self.save_path = save_path
+        self.min_batch = min_batch
+        self.max_batch = max_batch
 
     def __get_hook(self) -> torch.utils.hooks.RemovableHandle:
         """
@@ -47,6 +49,9 @@ class DSA(InputSelection):
         """
         with torch.no_grad():
             for i, (inputs, labels) in enumerate(self.train_loader):
+                if i < self.min_batch:
+                    continue
+
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 _ = self.model(inputs)
@@ -76,8 +81,8 @@ class DSA(InputSelection):
                         offset += count.item()
                 self.hook.clear_ats()
 
-                if i == 0:
-                    exit(0)
+                if i == (self.max_batch - 1):
+                    break
 
     def __fetch_dsa(self):
         """
