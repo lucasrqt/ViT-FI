@@ -14,10 +14,10 @@ precision=(
 )
 
 input_selection_methods=(
-    "VARIANCE"
+    # "VARIANCE"
     # "MAX_P"
     # "CONFIDENCE"
-    # "DSA"
+    "DSA"
 )
 
 device="cuda:0"
@@ -35,6 +35,7 @@ seeds=(
 )
 
 options="--load-correct-predictions"
+# options=""
 
 # creating folder for results
 cd input_selection
