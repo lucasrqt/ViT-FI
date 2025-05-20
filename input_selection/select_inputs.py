@@ -58,17 +58,17 @@ def main():
         dataset_name, transforms, batch_size, shuffle_dataset
     )
 
-    if min_batch != 0 and max_batch != 0:
-        indices = list(range(min_batch*batch_size, (max_batch-1)*batch_size, 1))
-        subset = torch.utils.data.Subset(test_set, indices=indices)
-        data_loader = torch.utils.data.DataLoader(subset, batch_size=batch_size, shuffle=shuffle_dataset)
-
     logger.info(f"Validation set length: {len(data_loader)} batches.")
 
     train_set, train_loader = model_utils.get_train_set(
         dataset_name, transforms, batch_size, shuffle_dataset
     )
-    logger.info(f"Validation set length: {len(train_loader)} batches.")
+    if min_batch != 0 and max_batch != 0:
+        indices = list(range(min_batch*batch_size, (max_batch-1)*batch_size, 1))
+        subset = torch.utils.data.Subset(train_set, indices=indices)
+        train_loader = torch.utils.data.DataLoader(subset, batch_size=batch_size, shuffle=shuffle_dataset)
+
+    logger.info(f"Train set length: {len(train_loader)} batches.")
 
     num_classes = len(test_set.classes)
     if load_corr_pred:

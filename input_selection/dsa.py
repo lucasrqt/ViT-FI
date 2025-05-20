@@ -49,10 +49,6 @@ class DSA(InputSelection):
         """
         with torch.no_grad():
             for i, (inputs, labels) in enumerate(self.train_loader):
-                if i < self.min_batch:
-                    continue
-                print(i)
-
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 _ = self.model(inputs)
@@ -81,9 +77,6 @@ class DSA(InputSelection):
                             DSAUtils.save_ats(ats_to_cat, self.save_path, filename)
                         offset += count.item()
                 self.hook.clear_ats()
-
-                if i == (self.max_batch - 1):
-                    break
 
     def __fetch_dsa(self):
         """
