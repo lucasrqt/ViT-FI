@@ -3,6 +3,10 @@
 import os
 import sys
 
+import torch.utils
+import torch.utils.data
+import torch.utils.data.dataloader
+
 sys.path.append(os.path.abspath(".."))
 sys.path.append(os.path.abspath(os.path.join("..", "utils")))
 
@@ -53,6 +57,12 @@ def main():
     test_set, data_loader = model_utils.get_dataset(
         dataset_name, transforms, batch_size, shuffle_dataset
     )
+
+    if min_batch != 0 and max_batch != 0:
+        indices = list(range(min_batch*batch_size, (max_batch-1)*batch_size, 1))
+        subset = torch.utils.data.Subset(test_set, indices=indices)
+        data_loader = torch.utils.data.DataLoader(subset, batch_size=batch_size, shuffle=shuffle_dataset)
+
     logger.info(f"Validation set length: {len(data_loader)} batches.")
 
     train_set, train_loader = model_utils.get_train_set(
