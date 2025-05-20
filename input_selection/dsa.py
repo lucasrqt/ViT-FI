@@ -51,6 +51,7 @@ class DSA(InputSelection):
             for i, (inputs, labels) in enumerate(self.train_loader):
                 if i < self.min_batch:
                     continue
+                print(i)
 
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
