@@ -39,7 +39,18 @@ def get_dataset(dataset_name: str, transforms: tv_transforms.Compose, batch_size
     test_set = tv_datasets.imagenet.ImageNet(root=dataset_path, transform=transforms,
                                                  split='val')
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=shuffle)
+
     return test_set, test_loader
+
+def get_train_set(dataset_name: str, transforms: tv_transforms.Compose, batch_size: int, shuffle: bool = False):
+    dataset_path = configs.DATASETS_DIRS[dataset_name]
+    if dataset_path is None:
+        raise ValueError(f"Dataset path for {dataset_name} is not defined.")
+    
+    train_set = tv_datasets.imagenet.ImageNet(root=dataset_path, transform=transforms,
+                                                 split='train')
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=shuffle)
+    return train_set, train_loader
 
 def get_correct_indices(test_set, file) -> Subset:
     df = pd.read_csv(file, index_col=0)

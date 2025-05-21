@@ -5,7 +5,7 @@ script="select_inputs.py"
 # Run the tests
 models=(
    "vit_base_patch16_224"
-    "swin_base_patch4_window7_224"
+    # "swin_base_patch4_window7_224"
 )
 
 precision=(
@@ -14,10 +14,10 @@ precision=(
 )
 
 input_selection_methods=(
-    "VARIANCE"
+    # "VARIANCE"
     # "MAX_P"
     # "CONFIDENCE"
-    # "DSA"
+    "DSA"
 )
 
 device="cuda:0"
@@ -34,7 +34,11 @@ seeds=(
     # 35014520
 )
 
-options="--load-correct-predictions"
+min_batch=0
+max_batch=200
+
+options="--load-correct-predictions --min-batch $min_batch --max-batch $max_batch"
+# options=""
 
 # creating folder for results
 cd input_selection
@@ -43,7 +47,7 @@ for model in "${models[@]}"; do
     for prec in "${precision[@]}"; do
         for method in "${input_selection_methods[@]}"; do
             for seed in "${seeds[@]}"; do
-                time python $script --model $model --precision $prec --method $method --device $device --dataset $dataset --batch-size $batchsize --seed $seed $options
+                time python3 $script --model $model --precision $prec --method $method --device $device --dataset $dataset --batch-size $batchsize --seed $seed $options
             done
         done
     done
