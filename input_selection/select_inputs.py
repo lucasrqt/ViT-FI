@@ -64,7 +64,11 @@ def main():
         dataset_name, transforms, batch_size, shuffle_dataset
     )
     if min_batch != 0 and max_batch != 0:
-        indices = list(range(min_batch*batch_size, (max_batch-1)*batch_size, 1))
+        indices = list()
+        if max_batch == -1:
+            indices = list(range(min_batch*batch_size, len(train_set), 1))
+        else:
+            indices = list(range(min_batch*batch_size, (max_batch-1)*batch_size, 1))
         subset = torch.utils.data.Subset(train_set, indices=indices)
         train_loader = torch.utils.data.DataLoader(subset, batch_size=batch_size, shuffle=shuffle_dataset)
 
