@@ -65,7 +65,7 @@ def run_injections(
             out_prob_w_fault.squeeze(),
         )
 
-        print(out_prob_w_fault, out_with_fault)
+        # print(out_prob_w_fault, out_with_fault)
 
         logger.debug("-" * 80)
         logger.debug(f"Batch {i} - Microop: {microop}")
