@@ -219,16 +219,15 @@ def main() -> None:
             subset, batch_size=batch_size, shuffle=shuffle_dataset
         )
         logger.info("Injecting faults on correct predictions only.")
-        print(f"Subset length: {len(subset)}, last batch size: {len(subset) % batch_size}")
 
     dummy_input, _ = next(iter(data_loader))
     fault_model = statistical_fi.get_fault_model(
         configs.FAULT_MODEL_FILE, model_name, microop, precision, fault_model_threshold
     )
-    print("before converting to list")
-    data_loader = list(data_loader) 
-    data_loader = [data_loader[0], data_loader[-1]]
-    print(f"Data loader length: {len(data_loader)}")
+    # print("before converting to list")
+    # data_loader = list(data_loader) 
+    # data_loader = [data_loader[0], data_loader[-1]]
+    # print(f"Data loader length: {len(data_loader)}")
     # exit(0)
     if fault_model.empty:
         raise ValueError("Fault model not found.")
