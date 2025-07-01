@@ -37,6 +37,9 @@ def run_injections(
     model_for_fault.eval()
     model_for_fault.to(device)
 
+    if model_for_fault is None:
+        raise ValueError("Model for fault injection is not defined.")
+
     for i, (images, labels) in enumerate(data_loader):
         if precision == configs.FP16:
             images = images.half()
@@ -62,6 +65,8 @@ def run_injections(
             out_prob_w_fault.squeeze(),
         )
 
+        # print(out_prob_w_fault, out_with_fault)
+
         logger.debug("-" * 80)
         logger.debug(f"Batch {i} - Microop: {microop}")
         for j in range(len(images)):
@@ -85,7 +90,7 @@ def run_injections(
 
         TIME_MEASURE.append(time.time() - start)
 
-        # if i == 1:
+        # if i == 9:
         #     logger.info(f"Stopping after {i+1} batches.")
         #     break
 
@@ -219,8 +224,15 @@ def main() -> None:
     fault_model = statistical_fi.get_fault_model(
         configs.FAULT_MODEL_FILE, model_name, microop, precision, fault_model_threshold
     )
+    # print("before converting to list")
+    # data_loader = list(data_loader) 
+    # data_loader = [data_loader[0], data_loader[-1]]
+    # print(f"Data loader length: {len(data_loader)}")
+    # exit(0)
     if fault_model.empty:
         raise ValueError("Fault model not found.")
+    
+    print(len(subset))
     hook, handler = statistical_fi.hook_microop(
         model_for_fault,
         model_name,
