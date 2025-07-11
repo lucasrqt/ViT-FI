@@ -4,7 +4,7 @@ script="main.py"
 
 # Run the tests
 models=(
-   #"vit_base_patch16_224"
+   "vit_base_patch16_224"
    "swin_base_patch4_window7_224"
 )
 
@@ -142,9 +142,9 @@ seeds=(
     2863741219
 )
 targets=(
-    "LAST"
-    "FIRST"
-# "MIDDLE"
+    # "LAST"
+    # "FIRST"
+    "MIDDLE"
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"

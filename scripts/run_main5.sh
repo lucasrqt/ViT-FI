@@ -142,9 +142,9 @@ seeds=(
     #2863741219
 )
 targets=(
-    "LAST"
-    "FIRST"
-    # "MIDDLE"
+    # "LAST"
+    # "FIRST"
+    "MIDDLE"
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
