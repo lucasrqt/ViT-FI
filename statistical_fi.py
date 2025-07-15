@@ -25,10 +25,13 @@ class InjectionType(enum.Enum):
 
 class LayerChoice(enum.Enum):
     FIRST = 0
-    MIDDLE = 1
-    LAST = 2
-    SMALLEST = 3
-    LARGEST = 4
+    FIRST_HALF = 1
+    MIDDLE = 2
+    MIDDLE_HALF = 3
+    BEFORE_LAST = 4
+    LAST = 5
+    SMALLEST = 6
+    LARGEST = 7
 
     def __str__(self):
         return str(self.name)
@@ -359,6 +362,12 @@ def select_layer(target: LayerChoice) -> torch.nn.Module:
         return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 2][MODULE]
     elif target == LayerChoice.LAST:
         return _HOOKABLE_LAYERS[-1][MODULE]
+    elif target == LayerChoice.FIRST_HALF:
+        return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 4][MODULE]
+    elif target == LayerChoice.MIDDLE_HALF:
+        return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 2 + len(_HOOKABLE_LAYERS) // 4][MODULE]
+    elif target == LayerChoice.BEFORE_LAST:
+        return _HOOKABLE_LAYERS[-2][MODULE]
     else:
         return ValueError("Invalid layer choice.")
 

@@ -145,7 +145,8 @@ seeds=(
 targets=(
     # "LAST"
     # "FIRST"
-    "MIDDLE"
+    # "MIDDLE"
+    "MIDDLE_HALF"
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
