@@ -115,6 +115,9 @@ class MicroopHook:
 
     def set_save_critical_logits(self, save_critical_logits) -> None:
         self.save_critical_logits = save_critical_logits
+    
+    def get_relative_errors(self):
+        return self._relative_errors if hasattr(self, "_relative_errors") else None
 
     def hook_fn_to_inject_fault(self, module, module_input, module_output) -> None:
         """
