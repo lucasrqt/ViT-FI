@@ -122,6 +122,14 @@ class MainParser:
         parser.add_argument(
             "-v", "--verbose", action="store_true", help="Verbose mode.", default=False
         )
+        parser.add_argument(
+            "--specific-seed",
+            type=int,
+            default=None,
+            choices=[None, 0, 29052001],
+            help="Specific seed to use for the input selection method. If None, a random seed will be used.",
+        )
+
         return parser.parse_args()
 
 
@@ -220,4 +228,11 @@ class InputSelectionParser:
             default=0,
             help="Max bound of ranges of batch to compute the training ATs."
         )
+        parser.add_argument(
+            "--load-training-set",
+            action="store_true",
+            help="Load the training set for input selection.",
+            default=False,
+        )
+
         return parser.parse_args()
