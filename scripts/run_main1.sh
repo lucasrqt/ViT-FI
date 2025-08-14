@@ -143,13 +143,12 @@ seeds=(
 )
 
 targets=(
-#     "LAST"
+    # "MIDDLE"
+    # "LAST"
     # "FIRST"
-    "MIDDLE"
-    "LAST"
-    # "MIDDLE_HALF"
+    "MIDDLE_HALF"
+    "BEFORE_LAST"
 )
-
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
 options="--inject-on-correct-predictions --shuffle-dataset"
 #options="--inject-on-correct-predictions"
