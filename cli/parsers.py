@@ -65,12 +65,18 @@ class MainParser:
             help="Microoperation to inject the fault.",
             choices=configs.MICROBENCHMARK_MODULES,
         )
+        # parser.add_argument(
+        #     "--target-layer",
+        #     type=lambda lc: statistical_fi.LayerChoice[lc],
+        #     default=statistical_fi.LayerChoice.LAST,
+        #     help="Target layer for the fault injection.",
+        #     choices=list(statistical_fi.LayerChoice),
+        # )
         parser.add_argument(
             "--target-layer",
-            type=lambda lc: statistical_fi.LayerChoice[lc],
-            default=statistical_fi.LayerChoice.LAST,
+            type=int,
+            default=-1,
             help="Target layer for the fault injection.",
-            choices=list(statistical_fi.LayerChoice),
         )
         parser.add_argument(
             "--injection-type",

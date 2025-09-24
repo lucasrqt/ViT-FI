@@ -200,7 +200,7 @@ def main() -> None:
     if inject_on_corr_preds:
         _, subset = model_utils.get_correct_indices(
             test_set,
-            f"data/{model_name}_{dataset_name}_{precision}_correct_predictions.csv",
+            f"data/input_selection/{model_name}_input_selection_outliers.csv",
         )
         if args.load_critical:
             df = pd.read_csv("data/fi_critical_images.csv")

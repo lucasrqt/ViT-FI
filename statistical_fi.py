@@ -203,10 +203,11 @@ class MicroopHook:
 
         elif self.injection_type == InjectionType.FIXED:
             num_rel_errors = int(altered_floats_ratio * num_elements)
-            num_nan = int(float_to_nan_ratio * num_elements)
-            num_neginf = int(nb_neginf_ratio * num_elements)
-            num_posinf = int(nb_posinf_ratio * num_elements)
-            sum_num_err = num_rel_errors + num_nan + num_neginf + num_posinf
+            num_nan = 341606
+            num_neginf = int(1368 / 2)
+            num_posinf = int(1368 / 2)
+            # sum_num_err = num_rel_errors + num_nan + num_neginf + num_posinf
+            sum_num_err = num_rel_errors + num_neginf + num_posinf
 
             if not hasattr(self, "_altered_indices") or self._altered_indices is None:
                 self._altered_indices = torch.randperm(faulty_output.numel())[:sum_num_err]
@@ -215,14 +216,14 @@ class MicroopHook:
                 )
                 self._split1_indices = self._altered_indices[self._last_batch_msk]
 
-            # rel_err_indices = self._altered_indices[:num_rel_errors]
-            # nan_indices = self._altered_indices[num_rel_errors:num_rel_errors + num_nan]
-            # neginf_indices = self._altered_indices[
-            #     num_rel_errors + num_nan:num_rel_errors + num_nan + num_neginf
-            # ]
-            # posinf_indices = self._altered_indices[
-            #     num_rel_errors + num_nan + num_neginf:num_rel_errors + num_nan + num_neginf + num_posinf
-            # ]
+            rel_err_indices = self._altered_indices[:num_rel_errors]
+            nan_indices = self._altered_indices[num_rel_errors:num_rel_errors + num_nan]
+            neginf_indices = self._altered_indices[
+                num_rel_errors + num_nan:num_rel_errors + num_nan + num_neginf
+            ]
+            posinf_indices = self._altered_indices[
+                num_rel_errors + num_nan + num_neginf:num_rel_errors + num_nan + num_neginf + num_posinf
+            ]
 
             if not hasattr(self, "_relative_errors") or self._relative_errors is None:
                 nb_bins = fault_model.columns.str.startswith("bin_").sum()
@@ -246,18 +247,23 @@ class MicroopHook:
             if faulty_output.shape[0] == self.last_batch_size:
                 err_indices = self._split1_indices
                 rel_err = self._relative_errors[self._last_batch_msk]
+                nan_indices = nan_indices[self._last_batch_msk]
+                neginf_indices = neginf_indices[self._last_batch_msk]
+                posinf_indices = posinf_indices[self._last_batch_msk]
 
             faulty_output = faulty_output.flatten()
 
-            finite_mask = torch.isfinite(rel_err)
-            valid_idx = err_indices[finite_mask]
-            valid_rel = rel_err[finite_mask]
+            # finite_mask = torch.isfinite(rel_err)
+            # valid_idx = err_indices[finite_mask]
+            # valid_rel = rel_err[finite_mask]
 
-            faulty_output[valid_idx] *= 1 + valid_rel
+            # faulty_output[valid_idx] *= 1 + valid_rel
+            faulty_output[err_indices] *= 1 + rel_err
 
-            # nan_mask = torch.isnan(rel_err)
-            # if nan_mask.any():
-            #     faulty_output[err_indices[nan_mask]] = np.nan
+
+            # faulty_output[nan_indices] = np.nan
+            faulty_output[neginf_indices] = np.NINF
+            faulty_output[posinf_indices] = np.PINF
 
             # posinf_mask = (rel_err == np.PINF)
             # if posinf_mask.any():
@@ -270,7 +276,9 @@ class MicroopHook:
             # print(f"{ len(err_indices[nan_mask]) = } -- { len(err_indices[posinf_mask]) = } -- { len(err_indices[neginf_mask]) = }")
 
         # print(f"Injected {num_rel_errors} relative errors, "
-        #       f"{num_nan} NaNs, {num_neginf} -inf, and {num_posinf} +inf into the output.")
+        #       f"{num_nan} NaNs,"
+        #     #   f"{num_neginf} -inf, and {num_posinf} +inf into the output."
+        #       )
         
         # print(f"{ rel_err_indices =  }"
         #       f"{ nan_indices =  }"
@@ -351,7 +359,31 @@ def check_microop(model_name, microop) -> bool:
         return ValueError(f"Model {model_name} not supported.")
 
 
-def select_layer(target: LayerChoice) -> torch.nn.Module:
+# def select_layer(target: LayerChoice) -> torch.nn.Module:
+#     """
+#     Selects a layer based on the target choice.
+#     Args:
+#         target (LayerChoice): The target choice for selecting the layer.
+#     Returns:
+#         torch.nn.Module: The selected layer.
+#     """
+#     if target == LayerChoice.FIRST:
+#         return _HOOKABLE_LAYERS[0][MODULE]
+#     elif target == LayerChoice.MIDDLE:
+#         return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 2][MODULE]
+#     elif target == LayerChoice.LAST:
+#         return _HOOKABLE_LAYERS[-1][MODULE]
+#     elif target == LayerChoice.FIRST_HALF:
+#         return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 4][MODULE]
+#     elif target == LayerChoice.MIDDLE_HALF:
+#         return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 2 + len(_HOOKABLE_LAYERS) // 4][MODULE]
+#     elif target == LayerChoice.BEFORE_LAST:
+#         return _HOOKABLE_LAYERS[-2][MODULE]
+#     else:
+#         return ValueError("Invalid layer choice.")
+    
+
+def select_layer(target: int) -> torch.nn.Module:
     """
     Selects a layer based on the target choice.
     Args:
@@ -359,21 +391,10 @@ def select_layer(target: LayerChoice) -> torch.nn.Module:
     Returns:
         torch.nn.Module: The selected layer.
     """
-    if target == LayerChoice.FIRST:
-        return _HOOKABLE_LAYERS[0][MODULE]
-    elif target == LayerChoice.MIDDLE:
-        return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 2][MODULE]
-    elif target == LayerChoice.LAST:
-        return _HOOKABLE_LAYERS[-1][MODULE]
-    elif target == LayerChoice.FIRST_HALF:
-        return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 4][MODULE]
-    elif target == LayerChoice.MIDDLE_HALF:
-        return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 2 + len(_HOOKABLE_LAYERS) // 4][MODULE]
-    elif target == LayerChoice.BEFORE_LAST:
-        return _HOOKABLE_LAYERS[-2][MODULE]
+    if target >= 0 and target < len(_HOOKABLE_LAYERS):
+        return _HOOKABLE_LAYERS[target][MODULE]
     else:
         return ValueError("Invalid layer choice.")
-
 
 def hook_microop(
     model,

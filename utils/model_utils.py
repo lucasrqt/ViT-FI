@@ -52,6 +52,11 @@ def get_train_set(dataset_name: str, transforms: tv_transforms.Compose, batch_si
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=shuffle)
     return train_set, train_loader
 
+# def get_correct_indices(test_set, file) -> Subset:
+#     df = pd.read_csv(file, index_col=0)
+#     indices = df.index.tolist()
+#     return indices, Subset(test_set, indices)
+
 def get_correct_indices(test_set, file) -> Subset:
     df = pd.read_csv(file, index_col=0)
     indices = df.index.tolist()
