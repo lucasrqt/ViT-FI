@@ -5,7 +5,6 @@ from utils.input_selection import InputSelectionMethod
 
 # TODO: class GlobalParser
 
-
 class MainParser:
     def parse_args(self) -> argparse.Namespace:
         parser = argparse.ArgumentParser(
@@ -18,7 +17,7 @@ class MainParser:
             type=str,
             default=configs.VIT_BASE_PATCH16_224,
             help="Model name.",
-            choices=configs.VIT_CLASSIFICATION_CONFIGS,
+            choices=(configs.VIT_CLASSIFICATION_CONFIGS + configs.TEXT_MODELS),
         )
         parser.add_argument(
             "-D",
@@ -26,7 +25,7 @@ class MainParser:
             type=str,
             default=configs.IMAGENET,
             help="Dataset name.",
-            choices=[configs.IMAGENET, configs.COCO, configs.CIFAR10],
+            choices=[configs.IMAGENET, configs.COCO, configs.CIFAR10] + configs.TEXT_DATASETS,
         )
         parser.add_argument(
             "-b",
@@ -134,6 +133,16 @@ class MainParser:
             default=None,
             choices=[None, 0, 29052001],
             help="Specific seed to use for the input selection method. If None, a random seed will be used.",
+        )
+        parser.add_argument(
+            "--bitflip-position",
+            type=int,
+            default=0,
+            help="Specific bit position to flip 0 (for LSB) to 31. If None, a random position will be used.",
+            choices=configs.BITFLIP_POSITIONS,
+        )
+        parser.add_argument(
+            "-n", "--nsamples", type=int, default=-1, help="Number of samples to use."
         )
 
         return parser.parse_args()

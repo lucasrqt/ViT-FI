@@ -13,6 +13,9 @@ import os
 import cli.logger_formatter as logger_formatter
 from cli.parsers import MainParser
 
+from transformers import GPT2Tokenizer, GPT2ForSequenceClassification, AutoModelForSequenceClassification, AutoTokenizer
+from datasets import load_dataset
+
 TIME_MEASURE = []
 
 
@@ -97,6 +100,81 @@ def run_injections(
 
     logger.info("Done.")
 
+def run_injections_gpt2(
+    model_name,
+    dataset_name,
+    microop,
+    model,
+    model_for_fault,
+    data_loader,
+    precision,
+    device,
+    batch_size,
+    result_df,
+    result_file,
+    logger,
+) -> None:
+    global TIME_MEASURE
+    model.eval()
+    model.to(device)
+
+    model_for_fault.eval()
+    model_for_fault.to(device)
+
+    if model_for_fault is None:
+        raise ValueError("Model for fault injection is not defined.")
+
+    for i, batch in enumerate(data_loader):
+        start = time.time()
+        inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
+        labels = batch["labels"].cpu().numpy()
+
+        # microop = statistical_fi.select_microop(model_name)
+        out_wo_fault, out_prob_wo_fault = statistical_fi.run_inference_gpt2(
+            model, inputs, device
+        )
+        out_wo_fault, out_prob_wo_fault = (
+            out_wo_fault.squeeze(),
+            out_prob_wo_fault.squeeze(),
+        )
+        out_with_fault, out_prob_w_fault = statistical_fi.run_inference_gpt2(
+            model_for_fault, inputs, device
+        )
+        out_with_fault, out_prob_w_fault = (
+            out_with_fault.squeeze(),
+            out_prob_w_fault.squeeze(),
+        )
+        # return
+
+        # print(out_prob_w_fault, out_with_fault)
+
+        logger.debug("-" * 80)
+        logger.debug(f"Batch {i} - Microop: {microop}")
+        for j in range(len(labels)):
+            logger.debug(
+                f"Input {(i*batch_size)+j+1} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}"
+            )
+
+            result_df = result_data_utils.append_row(
+                result_df,
+                labels[j].item(),
+                out_wo_fault[j].item(),
+                out_with_fault[j].item(),
+                out_prob_wo_fault[j][0].item(),
+                out_prob_wo_fault[j][1].item(),
+                out_prob_w_fault[j][0].item(),
+                out_prob_w_fault[j][1].item(),
+            )
+            result_data_utils.save_result_data(
+                pd.DataFrame(result_df), configs.RESULTS_DIR, result_file
+            )
+
+        TIME_MEASURE.append(time.time() - start)
+        # if i == 9:
+        #     logger.info(f"Stopping after {i+1} batches.")
+        #     break
+
+    logger.info("Done.")
 
 def get_faulty_top5(
     model_name, microop, model, data_loader, precision, device, batch_size, logger
@@ -164,6 +242,8 @@ def main() -> None:
     verbose = args.verbose
     injection_type = args.injection_type
     specific_seed = args.specific_seed
+    nsamples = args.nsamples
+    bitflip_position = args.bitflip_position
 
     logger = logger_formatter.logging_setup(__name__, None, False, verbose)
 
@@ -178,63 +258,233 @@ def main() -> None:
             f"Microoperation {microop} not supported by the model {model_name}."
         )
 
-    logger.info("Model init...")
-    model = model_utils.get_model(model_name, precision)
-    model_for_fault = model_utils.get_model(model_name, precision)
-    transforms = model_utils.get_vit_transforms(model, precision)
+    logger.info(f"Model {model_name} on dataset {dataset_name} selected with {str(injection_type)}.")
+    if model_name in configs.VIT_CLASSIFICATION_CONFIGS:
+        model = model_utils.get_model(model_name, precision)
+        model_for_fault = model_utils.get_model(model_name, precision)
+        transforms = model_utils.get_vit_transforms(model, precision)
 
-    #### TEST CASE
-    # dummy_input = torch.randn(32, 3, 224, 224)
-    # out_wo_fault = statistical_fi.run_inference(model, dummy_input, device).squeeze()
-    # out_with_fault = statistical_fi.run_inference(model_for_fault, dummy_input, device).squeeze()
+        #### TEST CASE
+        # dummy_input = torch.randn(32, 3, 224, 224)
+        # out_wo_fault = statistical_fi.run_inference(model, dummy_input, device).squeeze()
+        # out_with_fault = statistical_fi.run_inference(model_for_fault, dummy_input, device).squeeze()
 
-    # print("-" * 80)
-    # print(f" [+] Batch {0} - Microop: {microop}")
-    # for j in range(len(dummy_input)):
-    #     print(f" [+] Image {j+1} - Ground truth: {out_wo_fault[j].item()} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
-    ####
+        # print("-" * 80)
+        # print(f" [+] Batch {0} - Microop: {microop}")
+        # for j in range(len(dummy_input)):
+        #     print(f" [+] Image {j+1} - Ground truth: {out_wo_fault[j].item()} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}")
+        ####
 
-    test_set, data_loader = model_utils.get_dataset(
-        dataset_name, transforms, batch_size, shuffle=shuffle_dataset
-    )
-    if inject_on_corr_preds:
-        _, subset = model_utils.get_correct_indices(
-            test_set,
-            f"data/input_selection/{model_name}_input_selection_outliers.csv",
+        test_set, data_loader = model_utils.get_dataset(
+            dataset_name, transforms, batch_size, shuffle=shuffle_dataset
         )
-        if args.load_critical:
-            df = pd.read_csv("data/fi_critical_images.csv")
-            df = df[(df["model"] == model_name) & (df["microop"] == microop)]
-            if df.empty:
-                raise ValueError("No critical images found.")
-            indices = df["image_id"].tolist()
-            # full_batchs = []
-            batch_indices = []
-            for index in indices:
-                batch_id = model_utils.get_batch_id(index, batch_size)
-                batch_indices.append(batch_id)
-            #     full_batchs += range(batch_id*batch_size, (batch_id+1)*batch_size)
-            # subset = Subset(subset, full_batchs)
+        if inject_on_corr_preds:
+            _, subset = model_utils.get_correct_indices(
+                test_set,
+                f"data/{model_name}_{dataset_name}_{precision}_correct_predictions.csv",
+            )
+            if args.load_critical:
+                df = pd.read_csv("data/fi_critical_images.csv")
+                df = df[(df["model"] == model_name) & (df["microop"] == microop)]
+                if df.empty:
+                    raise ValueError("No critical images found.")
+                indices = df["image_id"].tolist()
+                # full_batchs = []
+                batch_indices = []
+                for index in indices:
+                    batch_id = model_utils.get_batch_id(index, batch_size)
+                    batch_indices.append(batch_id)
+                #     full_batchs += range(batch_id*batch_size, (batch_id+1)*batch_size)
+                # subset = Subset(subset, full_batchs)
 
-        logger.info(f"{len(subset)} correct predictions found.")
+            logger.info(f"{len(subset)} correct predictions found.")
+            data_loader = torch.utils.data.DataLoader(
+                subset, batch_size=batch_size, shuffle=shuffle_dataset
+            )
+            logger.info("Injecting faults on correct predictions only.")
+        if specific_seed is not None:
+            sampler_generator = torch.Generator(device=configs.CPU)
+            sampler_generator.manual_seed(specific_seed)
+
+            subset = torch.utils.data.RandomSampler(data_source=test_set, replacement=False, num_samples=batch_size,
+                                                    generator=sampler_generator)
+            data_loader = torch.utils.data.DataLoader(dataset=test_set, sampler=subset, batch_size=batch_size,
+                                                    shuffle=False, pin_memory=True)
+    elif model_name == configs.FACEBOOK_BART:
+        # Load tokenizer and model
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        model_for_fault = AutoModelForSequenceClassification.from_pretrained(model_name)
+        model.eval()
+
+        model_for_fault.eval()
+
+        model_name = model_name.replace("/", "_")  # For saving files
+
+        # Load dataset (MNLI)
+        if dataset_name not in [configs.GLUE_MNLI]:
+            raise ValueError(f"{model_name} only supports MNLI dataset for now.")
+        
+        dataset, task = dataset_name.split("_")
+        raw_dataset = load_dataset(dataset, task)
+
+        # Preprocess MNLI samples (premise, hypothesis)
+        # ----------------------------
+        # Task-specific preprocessing
+        # ----------------------------
+        max_length = configs.TEXT_TASKS_MAX_LENGTH[dataset_name]
+        def preprocess(example):
+            return tokenizer(
+                example["premise"],
+                example["hypothesis"],
+                padding="max_length",
+                truncation=True,
+                max_length=max_length,
+            )
+
+        encoded_dataset = raw_dataset.map(preprocess, batched=True)
+        encoded_dataset = encoded_dataset.rename_column("label", "labels")
+        encoded_dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
+
+        # Use "validation_matched" split for consistency
+        validation_key = "validation_matched"
         data_loader = torch.utils.data.DataLoader(
-            subset, batch_size=batch_size, shuffle=shuffle_dataset
+            encoded_dataset[validation_key],
+            batch_size=batch_size,
+            shuffle=shuffle_dataset,
         )
-        logger.info("Injecting faults on correct predictions only.")
-    if specific_seed is not None:
-        sampler_generator = torch.Generator(device=configs.CPU)
-        sampler_generator.manual_seed(specific_seed)
+    elif model_name == configs.GPT2:
+        logger.debug("Text model selected.")
+        # ----------------------------
+        # Support SST-2 and MNLI
+        # ----------------------------
+        if dataset_name not in [configs.GLUE_SST2, configs.GLUE_MNLI]:
+            raise ValueError(f"Dataset {dataset_name} not supported for text models.")
 
-        subset = torch.utils.data.RandomSampler(data_source=test_set, replacement=False, num_samples=batch_size,
-                                                generator=sampler_generator)
-        data_loader = torch.utils.data.DataLoader(dataset=test_set, sampler=subset, batch_size=batch_size,
-                                                shuffle=False, pin_memory=True)
+        dataset, task = dataset_name.split("_")
+        test_set = load_dataset(dataset, task)
 
-    dummy_input, _ = next(iter(data_loader))
+        model_dir = f"./gpt2-{task}-finetuned"
+        tokenizer = GPT2Tokenizer.from_pretrained(model_dir)
+        tokenizer.pad_token = tokenizer.eos_token  # GPT-2 has no pad token
 
-    fault_model = statistical_fi.get_fault_model(
-        configs.FAULT_MODEL_FILE, model_name, microop, precision, fault_model_threshold
-    )
+        num_labels = configs.TEXT_TASKS_NUM_LABELS[dataset_name]
+        model = GPT2ForSequenceClassification.from_pretrained(model_dir, num_labels=num_labels)
+        model.config.pad_token_id = tokenizer.pad_token_id
+        model.resize_token_embeddings(len(tokenizer))
+
+        model_for_fault = GPT2ForSequenceClassification.from_pretrained(model_dir, num_labels=num_labels)
+        model_for_fault.config.pad_token_id = tokenizer.pad_token_id
+        model_for_fault.resize_token_embeddings(len(tokenizer))
+
+        # ----------------------------
+        # Task-specific preprocessing
+        # ----------------------------
+        max_length = configs.TEXT_TASKS_MAX_LENGTH[dataset_name]
+
+        if task == "sst2":
+            logger.debug("SST-2 task selected.")
+            def preprocess(example):
+                return tokenizer(
+                    example["sentence"],
+                    padding="max_length",
+                    truncation=True,
+                    max_length=max_length,
+                )
+
+        elif task == "mnli":
+            logger.debug("MNLI task selected.")
+            # MNLI has 'premise' and 'hypothesis' fields
+            def preprocess(example):
+                return tokenizer(
+                    example["premise"],
+                    example["hypothesis"],
+                    padding="max_length",
+                    truncation=True,
+                    max_length=max_length,
+                )
+
+        encoded_dataset = test_set.map(preprocess, batched=True)
+        encoded_dataset = encoded_dataset.rename_column("label", "labels")
+        encoded_dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
+
+        # MNLI has multiple validation splits: 'validation_matched' and 'validation_mismatched'
+        if task == "mnli":
+            validation_key = "validation_matched"
+        else:
+            validation_key = "validation"
+
+        data_loader = torch.utils.data.DataLoader(
+            encoded_dataset[validation_key],
+            batch_size=batch_size,
+            shuffle=shuffle_dataset,
+        )
+
+        if inject_on_corr_preds:
+            df = pd.read_csv(f"data/{model_name}-{dataset_name}-predictions.csv")
+            df["confidence"] = df["top1_prob"] - df["top2_prob"]
+            df = df.sort_values(by="confidence", ascending=True)
+            df = df[df["true_label"] == df["pred_class"]]
+            if nsamples > 0:
+                df = df.head(nsamples)
+            indices = df.index.tolist()
+            subset = encoded_dataset[validation_key].select(indices)
+
+            data_loader = torch.utils.data.DataLoader(
+                subset,
+                batch_size=batch_size,
+                shuffle=shuffle_dataset,
+            )
+
+
+    if nsamples > 0:
+        subset_indices = list(range(nsamples))
+        if model_name in configs.VIT_CLASSIFICATION_CONFIGS:
+            subset = torch.utils.data.Subset(test_set, subset_indices)
+        # elif model_name in configs.TEXT_MODELS:
+        #     if task == "mnli":
+        #         subset_split = "validation_matched"
+        #     else:
+        #         subset_split = "validation"
+
+        #     subset = encoded_dataset[subset_split].select(subset_indices)
+        
+            data_loader = torch.utils.data.DataLoader(
+                subset,
+                batch_size=batch_size,
+                shuffle=shuffle_dataset,
+            )
+            logger.info(f"Using only {nsamples} samples for injection.")
+
+    dummy_input = None
+    if model_name in configs.VIT_CLASSIFICATION_CONFIGS:
+        dummy_input, _ = next(iter(data_loader))
+    elif model_name in configs.TEXT_MODELS:
+        for x in data_loader:
+            dummy_input = {k: v for k, v in x.items() if k != "labels"}
+            break
+
+    fault_model = None
+    if model_name in configs.VIT_CLASSIFICATION_CONFIGS:
+        fault_model = statistical_fi.get_fault_model(
+            configs.FAULT_MODEL_FILE, model_name, microop, precision, fault_model_threshold
+        )
+    elif model_name in configs.TEXT_MODELS:
+        fault_model_mapping = {
+            configs.GPT2_BLOCK: configs.BLOCK,
+            configs.GPT2_ATTENTION: configs.ATTENTION,
+            configs.GPT2_MLP: configs.MLP,
+            configs.BART_ENCODER: configs.BLOCK,
+            configs.BART_DECODER: configs.BLOCK,
+            configs.BART_SDPA_ATTENTION: configs.ATTENTION,
+        }
+        mapped_microop = fault_model_mapping.get(microop, microop)
+        fault_model = statistical_fi.get_fault_model(
+            configs.FAULT_MODEL_FILE, configs.VIT_BASE_PATCH16_224, mapped_microop, precision, fault_model_threshold
+        )
+
+    if fault_model is None:
+        raise ValueError("Fault model not found.")
     # print("before converting to list")
     # data_loader = list(data_loader) 
     # data_loader = [data_loader[0], data_loader[-1]]
@@ -253,6 +503,8 @@ def main() -> None:
         dummy_input,
         target_layer,
         injection_type,
+        seed=seed,
+        bit_position=bitflip_position,
     )
 
     if args.load_critical:
@@ -290,45 +542,65 @@ def main() -> None:
             logger,
         )
     else:
-        run_injections(
-            model_name,
-            dataset_name,
-            microop,
-            model,
-            model_for_fault,
-            data_loader,
-            precision,
-            device,
-            batch_size,
-            result_df,
-            result_file,
-            logger,
-        )
+        if model_name in configs.TEXT_MODELS:
+            run_injections_gpt2(
+                model_name,
+                dataset_name,
+                microop,
+                model,
+                model_for_fault,
+                data_loader,
+                precision,
+                device,
+                batch_size,
+                result_df,
+                result_file,
+                logger,
+            )
+        else:
+            run_injections(
+                model_name,
+                dataset_name,
+                microop,
+                model,
+                model_for_fault,
+                data_loader,
+                precision,
+                device,
+                batch_size,
+                result_df,
+                result_file,
+                logger,
+            )
 
     # torch.save(hook.get_relative_errors(), f"data/rel_err_outputs2/{model_name}-{str(target_layer)}-{seed}-rel_err.pt")
 
     handler.remove()
 
-    # if TIME_MEASURE is not None:
-    #     average = mean(TIME_MEASURE)
-    #     data = {
-    #         "model": model_name,
-    #         "microop": microop,
-    #         "target_layer": str(target_layer),
-    #         "ETA": average * len(data_loader),
-    #     }
-    #     logger.info(f"ETA for full pass: {average*len(data_loader):.2f}s")
+    if TIME_MEASURE is not None:
+        average = mean(TIME_MEASURE)
+        data = {
+            "model": model_name,
+            "microop": microop,
+            "target_layer": str(target_layer),
+            "seed": seed,
+            "batch_size": batch_size,
+            "avg_time_per_batch": average,
+            "injection_type": str(injection_type),
+            "ETA": average * len(data_loader),
+        }
+        logger.info(f"ETA for full pass: {average*len(data_loader):.2f}s")
 
-    #     eta_path = "data/eta_swfi_rel_err_large_val.csv"
+        eta_path = "data/eta_swfi_rel_err_large_val_LATS.csv"
 
-    #     if os.path.exists(eta_path):
-    #         df = pd.read_csv(eta_path)
-    #         data = pd.DataFrame([data])
-    #         df = pd.concat([df, data])
-    #         df.to_csv(eta_path, index=False)
-    #     else:
-    #         df = pd.DataFrame([data])
-    #         df.to_csv(eta_path, index=False)
+        if os.path.exists(eta_path):
+            df = pd.read_csv(eta_path)
+            data = pd.DataFrame([data])
+            df = pd.concat([df, data])
+            df.to_csv(eta_path, index=False)
+        else:
+            df = pd.DataFrame([data])
+            df.to_csv(eta_path, index=False)
 
 
 if __name__ == "__main__":

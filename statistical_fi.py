@@ -5,16 +5,24 @@ import pandas as pd
 from utils.compare_utils import get_top_k_labels, get_top_k_probs
 import enum
 import numpy as np
+import struct
 
 _LAYER_TO_HOOK = [1e-30]
 _HOOKABLE_LAYERS = []
 
 MODULE, MICROOP_SIZE, INPUT_SIZE = 0, 1, 2
 
+DEFAULT_CORRUPT_VALUE = 1e-4
+DEFAULT_COL, DEFAULT_ROW = 0, 0
+DEFAULT_BIT_POSITION = 23  # Flipping the last bit of the exponent in float32
 
 class InjectionType(enum.Enum):
     RANDOM = 0
     FIXED = 1
+    SINGLE = 2
+    ROW = 3
+    COL = 4
+    BULLET_WAKE = 5 # ONLY for 3D microop like one of Swin
 
     def __str__(self):
         return str(self.name)
@@ -77,6 +85,8 @@ class MicroopHook:
         layer_id,
         fault_model,
         inj_type,
+        seed=0,
+        bit_position=DEFAULT_BIT_POSITION,
     ):
         """
         Initializes the MicroopHook class.
@@ -89,6 +99,8 @@ class MicroopHook:
         self.last_batch_size = nb_inputs % self.batch_size
         self.save_critical_logits = False
         self.injection_type = inj_type
+        self.seed = seed
+        self.bit_position = bit_position
 
     def __process_fault_model(self) -> tuple:
         """
@@ -129,7 +141,10 @@ class MicroopHook:
         """
 
         # Move the output to CPU for computations
-        faulty_output = module_output.clone().cpu()
+        if self.model_name in configs.TEXT_MODELS and isinstance(module_output, tuple):
+            faulty_output = module_output[0].clone().cpu()
+        else:
+            faulty_output = module_output.clone().cpu()
 
         # Gathering the fault model
         fault_model, altered_floats, float_to_nan, nb_neginf, nb_posinf = (
@@ -203,9 +218,12 @@ class MicroopHook:
 
         elif self.injection_type == InjectionType.FIXED:
             num_rel_errors = int(altered_floats_ratio * num_elements)
-            num_nan = 341606
-            num_neginf = int(1368 / 2)
-            num_posinf = int(1368 / 2)
+            # num_nan = 341606
+            # num_neginf = int(1368 / 2)
+            # num_posinf = int(1368 / 2)
+            num_nan = 0
+            num_neginf = 0
+            num_posinf = 0
             # sum_num_err = num_rel_errors + num_nan + num_neginf + num_posinf
             sum_num_err = num_rel_errors + num_neginf + num_posinf
 
@@ -228,11 +246,29 @@ class MicroopHook:
             if not hasattr(self, "_relative_errors") or self._relative_errors is None:
                 nb_bins = fault_model.columns.str.startswith("bin_").sum()
                 if not hasattr(self, "_bins") or self._bins is None:
-                    self._bins = torch.tensor(
-                        ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
-                    )
+                    # self._bins = torch.tensor(
+                    #     ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
+                    # )
+                    # counts = torch.tensor(
+                    #     ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
+                    #     dtype=torch.float,
+                    # )
+                    # keep only bins and probabilities that have a relative error between -30% and 30%
+                                        # Filter out bins with absolute value > 0.3
+                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    for col in bin_cols:
+                        if abs(fault_model[col].item()) > 0.3:
+                            # Get the corresponding hist column
+                            hist_col = col.replace("bin_", "hist_")
+                            fault_model = fault_model.drop(columns=[col, hist_col])
+                    
+                    # Get actual bin column names after filtering
+                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
+                    
+                    self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
                     counts = torch.tensor(
-                        ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
+                        [fault_model[col].item() for col in hist_cols],
                         dtype=torch.float,
                     )
                     self._probs = counts / counts.sum()
@@ -240,6 +276,7 @@ class MicroopHook:
                 self._relative_errors = self._bins[
                     torch.multinomial(self._probs, sum_num_err, replacement=True)
                 ]
+                # torch.save(self._relative_errors, f"relerr-{self.model_name}-{self.microop}-layer_{self.layer_id}-seed_{self.seed}.pt")
 
             err_indices = self._altered_indices
 
@@ -262,18 +299,8 @@ class MicroopHook:
 
 
             # faulty_output[nan_indices] = np.nan
-            faulty_output[neginf_indices] = np.NINF
-            faulty_output[posinf_indices] = np.PINF
-
-            # posinf_mask = (rel_err == np.PINF)
-            # if posinf_mask.any():
-            #     faulty_output[err_indices[posinf_mask]] = np.PINF
-
-            # neginf_mask = (rel_err == np.NINF)
-            # if neginf_mask.any():
-            #     faulty_output[err_indices[neginf_mask]] = np.NINF
-
-            # print(f"{ len(err_indices[nan_mask]) = } -- { len(err_indices[posinf_mask]) = } -- { len(err_indices[neginf_mask]) = }")
+            # faulty_output[neginf_indices] = np.NINF
+            # faulty_output[posinf_indices] = np.PINF
 
         # print(f"Injected {num_rel_errors} relative errors, "
         #       f"{num_nan} NaNs,"
@@ -286,10 +313,159 @@ class MicroopHook:
         #       f"{ posinf_indices =  }")
         
 
-        # Move the output back to the original device
-        faulty_output = faulty_output.view(module_output.shape).to(module_output.device)
+        # elif self.injection_type == InjectionType.SINGLE:
+        #     # corrupt a single value inside tensor
+        #     faulty_output = faulty_output.flatten()
+        #     corrupt_index = np.random.randint(0, faulty_output.numel())
+        #     faulty_output[corrupt_index] *= 1 +DEFAULT_CORRUPT_VALUE
+        
+        elif self.injection_type == InjectionType.ROW:
+            # Corrupt the same row for each input in the batch
+            # Input shape: [batch_size, row_len, col_len]
+            
+            original_shape = faulty_output.shape
+            
+            if len(original_shape) != 3:
+                raise ValueError(f"ROW injection expects 3D tensor [batch_size, row_len, col_len], got shape {original_shape}")
+            
+            batch_size, row_len, col_len = original_shape
+            
+            # Select which row to corrupt (use DEFAULT_ROW or select randomly once)
+            if not hasattr(self, "_selected_row") or self._selected_row is None:
+                self._selected_row = DEFAULT_ROW % row_len
+            
+            row_idx = self._selected_row
+            
+            # Generate fault values based on fault model for this entire row
+            if not hasattr(self, "_row_fault_values") or self._row_fault_values is None:
+                nb_bins = fault_model.columns.str.startswith("bin_").sum()
+                if not hasattr(self, "_bins") or self._bins is None:
+                    # Filter out bins with absolute value > 0.3
+                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    for col in bin_cols:
+                        if abs(fault_model[col].item()) > 0.3:
+                            # Get the corresponding hist column
+                            hist_col = col.replace("bin_", "hist_")
+                            fault_model = fault_model.drop(columns=[col, hist_col])
+                    
+                    # Get actual bin column names after filtering
+                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
+                    
+                    self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
+                    counts = torch.tensor(
+                        [fault_model[col].item() for col in hist_cols],
+                        dtype=torch.float,
+                    )
+                    self._probs = counts / counts.sum()
+                
+                # Generate fault values for the entire row (col_len elements)
+                self._row_fault_values = self._bins[
+                    torch.multinomial(self._probs, col_len, replacement=True)
+                ]
+            
+            # Apply the same fault to the same row in every batch element
+            faulty_output[:, row_idx, :] *= 1 + self._row_fault_values
 
-        return faulty_output
+        elif self.injection_type == InjectionType.COL:
+            # Corrupt the same column for each input in the batch
+            # Input shape: [batch_size, row_len, col_len]
+            
+            original_shape = faulty_output.shape
+            
+            if len(original_shape) != 3:
+                raise ValueError(f"COL injection expects 3D tensor [batch_size, row_len, col_len], got shape {original_shape}")
+            
+            batch_size, row_len, col_len = original_shape
+            
+            # Select which column to corrupt (use DEFAULT_COL or select randomly once)
+            if not hasattr(self, "_selected_col") or self._selected_col is None:
+                self._selected_col = DEFAULT_COL % col_len
+            
+            col_idx = self._selected_col
+            
+            # Generate fault values based on fault model for this entire column
+            if not hasattr(self, "_col_fault_values") or self._col_fault_values is None:
+                nb_bins = fault_model.columns.str.startswith("bin_").sum()
+                if not hasattr(self, "_bins") or self._bins is None:
+                    # Filter out bins with absolute value > 0.3
+                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    for col in bin_cols:
+                        if abs(fault_model[col].item()) > 0.3:
+                            # Get the corresponding hist column
+                            hist_col = col.replace("bin_", "hist_")
+                            fault_model = fault_model.drop(columns=[col, hist_col])
+                    
+                    # Get actual bin column names after filtering
+                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
+                    
+                    self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
+                    counts = torch.tensor(
+                        [fault_model[col].item() for col in hist_cols],
+                        dtype=torch.float,
+                    )
+                    self._probs = counts / counts.sum()
+                
+                # Generate fault values for the entire column (row_len elements)
+                self._col_fault_values = self._bins[
+                    torch.multinomial(self._probs, row_len, replacement=True)
+                ]
+            
+            # Apply the same fault to the same column in every batch element
+            faulty_output[:, :, col_idx] *= 1 + self._col_fault_values
+
+        elif self.injection_type == InjectionType.SINGLE:
+            # Flip a specific bit at position [row_idx, col_idx] for each input in the batch
+            # Input shape: [batch_size, row_len, col_len]
+            
+            original_shape = faulty_output.shape
+            
+            if len(original_shape) != 3:
+                raise ValueError(f"SINGLE injection expects 3D tensor [batch_size, row_len, col_len], got shape {original_shape}")
+
+            batch_size, row_len, col_len = original_shape
+            
+            # Select position to corrupt (select once and reuse)
+            if not hasattr(self, "_bit_flip_row") or self._bit_flip_row is None:
+                self._bit_flip_row = np.random.randint(0, row_len - 1)
+                self._bit_flip_col = np.random.randint(0, col_len - 1)
+
+            row_idx = self._bit_flip_row
+            col_idx = self._bit_flip_col
+            
+            # Flip the bit at [row_idx, col_idx] for all batch elements
+            for b in range(batch_size):
+                # Get the element to corrupt
+                element = faulty_output[b, row_idx, col_idx].item()
+                
+                # Convert float to its integer bit representation (float32)
+                element_bytes = struct.pack('f', element)
+                element_int = struct.unpack('I', element_bytes)[0]
+
+                # Flip the specified bit (self.bit_position)
+                bit_mask = 1 << self.bit_position
+                corrupted_int = element_int ^ bit_mask
+                
+                # Convert back to float
+                corrupted_bytes = struct.pack('I', corrupted_int)
+                corrupted_float = struct.unpack('f', corrupted_bytes)[0]
+                
+                # Update the tensor
+                faulty_output[b, row_idx, col_idx] = corrupted_float
+
+        elif self.injection_type == InjectionType.BULLET_WAKE:
+            raise ValueError(f"BULLET_WAKE not implemented yet.")
+
+        # Move the output back to the original device
+        if self.model_name in configs.TEXT_MODELS and isinstance(module_output, tuple):
+            faulty_output = faulty_output.view(module_output[0].shape).to(module_output[0].device)
+            return (faulty_output, *module_output[1:])
+        else:
+            faulty_output = faulty_output.view(module_output.shape).to(module_output.device)
+            return faulty_output
+        
+
 
 
 
@@ -406,6 +582,8 @@ def hook_microop(
     dummy_input,
     target,
     injection_type,
+    seed=0,
+    bit_position=DEFAULT_BIT_POSITION,
 ) -> torch.utils.hooks.RemovableHandle:
     """
     Hook a specific micro-operation in the model to inject faults.
@@ -422,14 +600,20 @@ def hook_microop(
     """
     # layers = list()
     handlers = list()
+
     for layer_id, (name, layer) in enumerate(model.named_modules()):
+        # print(layer.__class__.__name__.strip())
+
         if layer.__class__.__name__.strip() == microop:
             # layers.append((layer, layer_id))
             hook = GetLayerSize()
             handler = layer.register_forward_hook(hook.hook_fn_to_get_layer_size)
             handlers.append(handler)
 
-    _ = model(dummy_input)
+    if model_name in configs.TEXT_MODELS:
+        _ = model(**dummy_input)
+    else:
+        _ = model(dummy_input)
 
     for handler in handlers:
         handler.remove()
@@ -443,6 +627,8 @@ def hook_microop(
         layer_id,
         fault_model,
         injection_type,
+        seed=seed,
+        bit_position=bit_position,
     )
     handler = layer.register_forward_hook(hook.hook_fn_to_inject_fault)
 
@@ -456,4 +642,16 @@ def run_inference(model, images, device):
             torch.cuda.synchronize()
         out_top_k = get_top_k_labels(output, configs.TOP_1)
         out_top_k_prob = get_top_k_probs(output, configs.TOP_2)
+        return out_top_k, out_top_k_prob
+    
+
+def run_inference_gpt2(model, inputs, device):
+    with torch.no_grad():
+        output = model(**inputs)
+        if "cuda" in device:
+            torch.cuda.synchronize()
+        logits = output.logits
+
+        out_top_k = get_top_k_labels(logits, configs.TOP_1, dim=-1)
+        out_top_k_prob = get_top_k_probs(logits, configs.TOP_2, dim=-1)
         return out_top_k, out_top_k_prob
