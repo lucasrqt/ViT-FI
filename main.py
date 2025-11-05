@@ -78,7 +78,7 @@ def run_injections(
                 logger.warning(
                     f"CRITICAL {(i*batch_size)+j+1} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()} (confidence: {(out_prob_wo_fault[j][0].item() - out_prob_wo_fault[j][1].item()):.4f})"
                 )
-            logger.debug(f"(confidence: {(out_prob_wo_fault[j][0].item() - out_prob_wo_fault[j][1].item()):.4f})")
+            # logger.debug(f"(confidence: {(out_prob_wo_fault[j][0].item() - out_prob_wo_fault[j][1].item()):.4f})")
 
             result_df = result_data_utils.append_row(
                 result_df,
@@ -294,8 +294,6 @@ def main() -> None:
             if nsamples > 0:
                 df = df.head(nsamples)
             indices = df.index.tolist()
-            print(indices)
-            # exit(0)
             subset = torch.utils.data.Subset(test_set, indices)
 
             data_loader = torch.utils.data.DataLoader(
