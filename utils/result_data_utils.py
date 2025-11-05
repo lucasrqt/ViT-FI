@@ -16,7 +16,10 @@ def get_result_filename(
     seed: int,
     layer: LayerChoice,
     it: InjectionType,
+    seed_specific: int = None,
 ) -> str:
+    if seed_specific is not None:
+        return f"{model_name}_{dataset_name}_{precision}_{microop}_{float_threshold_FM}_{seed}_layer-{str(layer)}_it-{str(it)}_seed-specif-{seed_specific}.csv"
     return f"{model_name}_{dataset_name}_{precision}_{microop}_{float_threshold_FM}_{seed}_layer-{str(layer)}_it-{str(it)}.csv"
 
 

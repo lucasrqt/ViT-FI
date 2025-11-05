@@ -9,13 +9,13 @@ def equal(rhs: torch.Tensor, lhs: torch.Tensor, threshold: float = 0) -> bool:
         return bool(torch.equal(rhs, lhs))
 
 
-def get_top_k_labels(tensor: torch.tensor, top_k: int) -> torch.tensor:
-    proba = torch.nn.functional.softmax(tensor, dim=1)
+def get_top_k_labels(tensor: torch.tensor, top_k: int, dim=1) -> torch.tensor:
+    proba = torch.nn.functional.softmax(tensor, dim=dim)
     return torch.topk(proba, k=top_k).indices.squeeze(0)
 
 
-def get_top_k_probs(tensor: torch.tensor, top_k: int) -> torch.tensor:
-    proba = torch.nn.functional.softmax(tensor, dim=1)
+def get_top_k_probs(tensor: torch.tensor, top_k: int, dim=1) -> torch.tensor:
+    proba = torch.nn.functional.softmax(tensor, dim=dim)
     return torch.topk(proba, k=top_k).values.squeeze(0)
 
 
