@@ -144,6 +144,13 @@ class MainParser:
         parser.add_argument(
             "-n", "--nsamples", type=int, default=-1, help="Number of samples to use."
         )
+        parser.add_argument(
+            "--range-restriction-mode",
+            type=lambda rrm: statistical_fi.RangeRestrictionMode[rrm],
+            default=statistical_fi.RangeRestrictionMode.NONE,
+            help="Mode for range restriction after fault injection.",
+            choices=list(statistical_fi.RangeRestrictionMode),
+        )
 
         return parser.parse_args()
 

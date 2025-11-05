@@ -71,12 +71,14 @@ def run_injections(
 
         # print(out_prob_w_fault, out_with_fault)
 
-        logger.debug("-" * 80)
-        logger.debug(f"Batch {i} - Microop: {microop}")
+        logger.warning("-" * 80)
+        logger.warning(f"Batch {i} - Microop: {microop}")
         for j in range(len(images)):
-            logger.debug(
-                f"Image {(i*batch_size)+j+1} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}"
-            )
+            if out_wo_fault[j].item() != out_with_fault[j].item():
+                logger.warning(
+                    f"CRITICAL {(i*batch_size)+j+1} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()} (confidence: {(out_prob_wo_fault[j][0].item() - out_prob_wo_fault[j][1].item()):.4f})"
+                )
+            logger.debug(f"(confidence: {(out_prob_wo_fault[j][0].item() - out_prob_wo_fault[j][1].item()):.4f})")
 
             result_df = result_data_utils.append_row(
                 result_df,
@@ -148,12 +150,13 @@ def run_injections_gpt2(
 
         # print(out_prob_w_fault, out_with_fault)
 
-        logger.debug("-" * 80)
-        logger.debug(f"Batch {i} - Microop: {microop}")
+        logger.warning("-" * 80)
+        logger.warning(f"Batch {i} - Microop: {microop}")
         for j in range(len(labels)):
-            logger.debug(
-                f"Input {(i*batch_size)+j+1} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()}"
-            )
+            if out_wo_fault[j].item() != out_with_fault[j].item():
+                logger.warning(
+                    f"CRITICAL {(i*batch_size)+j+1} - Ground truth: {labels[j]} - Prediction without fault: {out_wo_fault[j].item()} - Prediction with fault: {out_with_fault[j].item()} (confidence: {(out_prob_wo_fault[j][0].item() - out_prob_wo_fault[j][1].item()):.4f})"
+                )
 
             result_df = result_data_utils.append_row(
                 result_df,
@@ -244,6 +247,7 @@ def main() -> None:
     specific_seed = args.specific_seed
     nsamples = args.nsamples
     bitflip_position = args.bitflip_position
+    range_restriction_mode = args.range_restriction_mode
 
     logger = logger_formatter.logging_setup(__name__, None, False, verbose)
 
@@ -279,10 +283,27 @@ def main() -> None:
             dataset_name, transforms, batch_size, shuffle=shuffle_dataset
         )
         if inject_on_corr_preds:
-            _, subset = model_utils.get_correct_indices(
-                test_set,
-                f"data/{model_name}_{dataset_name}_{precision}_correct_predictions.csv",
+            # _, subset = model_utils.get_correct_indices(
+            #     test_set,
+            #     f"data/{model_name}_{dataset_name}_{precision}_correct_predictions.csv",
+            # )
+
+            # inject on low_confidence correct predictions
+            df = pd.read_csv(f"data/{model_name}-{dataset_name}-predictions.csv", index_col=0)
+            df = df.sort_values(by="confidence", ascending=True)
+            if nsamples > 0:
+                df = df.head(nsamples)
+            indices = df.index.tolist()
+            print(indices)
+            # exit(0)
+            subset = torch.utils.data.Subset(test_set, indices)
+
+            data_loader = torch.utils.data.DataLoader(
+                subset,
+                batch_size=batch_size,
+                shuffle=shuffle_dataset,
             )
+
             if args.load_critical:
                 df = pd.read_csv("data/fi_critical_images.csv")
                 df = df[(df["model"] == model_name) & (df["microop"] == microop)]
@@ -298,18 +319,18 @@ def main() -> None:
                 # subset = Subset(subset, full_batchs)
 
             logger.info(f"{len(subset)} correct predictions found.")
-            data_loader = torch.utils.data.DataLoader(
-                subset, batch_size=batch_size, shuffle=shuffle_dataset
-            )
+            # data_loader = torch.utils.data.DataLoader(
+            #     subset, batch_size=batch_size, shuffle=shuffle_dataset
+            # )
             logger.info("Injecting faults on correct predictions only.")
-        if specific_seed is not None:
-            sampler_generator = torch.Generator(device=configs.CPU)
-            sampler_generator.manual_seed(specific_seed)
+        # if specific_seed is not None:
+        #     sampler_generator = torch.Generator(device=configs.CPU)
+        #     sampler_generator.manual_seed(specific_seed)
 
-            subset = torch.utils.data.RandomSampler(data_source=test_set, replacement=False, num_samples=batch_size,
-                                                    generator=sampler_generator)
-            data_loader = torch.utils.data.DataLoader(dataset=test_set, sampler=subset, batch_size=batch_size,
-                                                    shuffle=False, pin_memory=True)
+        #     subset = torch.utils.data.RandomSampler(data_source=test_set, replacement=False, num_samples=batch_size,
+        #                                             generator=sampler_generator)
+        #     data_loader = torch.utils.data.DataLoader(dataset=test_set, sampler=subset, batch_size=batch_size,
+        #                                             shuffle=False, pin_memory=True)
     elif model_name == configs.FACEBOOK_BART:
         # Load tokenizer and model
         tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -437,24 +458,24 @@ def main() -> None:
             )
 
 
-    if nsamples > 0:
-        subset_indices = list(range(nsamples))
-        if model_name in configs.VIT_CLASSIFICATION_CONFIGS:
-            subset = torch.utils.data.Subset(test_set, subset_indices)
-        # elif model_name in configs.TEXT_MODELS:
-        #     if task == "mnli":
-        #         subset_split = "validation_matched"
-        #     else:
-        #         subset_split = "validation"
+    # if nsamples > 0:
+    #     subset_indices = list(range(nsamples))
+    #     if model_name in configs.VIT_CLASSIFICATION_CONFIGS:
+    #         subset = torch.utils.data.Subset(test_set, subset_indices)
+    #     # elif model_name in configs.TEXT_MODELS:
+    #     #     if task == "mnli":
+    #     #         subset_split = "validation_matched"
+    #     #     else:
+    #     #         subset_split = "validation"
 
-        #     subset = encoded_dataset[subset_split].select(subset_indices)
+    #     #     subset = encoded_dataset[subset_split].select(subset_indices)
         
-            data_loader = torch.utils.data.DataLoader(
-                subset,
-                batch_size=batch_size,
-                shuffle=shuffle_dataset,
-            )
-            logger.info(f"Using only {nsamples} samples for injection.")
+    #         data_loader = torch.utils.data.DataLoader(
+    #             subset,
+    #             batch_size=batch_size,
+    #             shuffle=shuffle_dataset,
+    #         )
+    #         logger.info(f"Using only {nsamples} samples for injection.")
 
     dummy_input = None
     if model_name in configs.VIT_CLASSIFICATION_CONFIGS:
@@ -492,8 +513,8 @@ def main() -> None:
     # exit(0)
     if fault_model.empty:
         raise ValueError("Fault model not found.")
-    
-    hook, handler = statistical_fi.hook_microop(
+
+    hook, handler, range_restrict_handlers = statistical_fi.hook_microop(
         model_for_fault,
         model_name,
         microop,
@@ -505,6 +526,8 @@ def main() -> None:
         injection_type,
         seed=seed,
         bit_position=bitflip_position,
+        dataset_name=dataset_name,
+        range_restriction_mode=range_restriction_mode,
     )
 
     if args.load_critical:
@@ -576,31 +599,33 @@ def main() -> None:
     # torch.save(hook.get_relative_errors(), f"data/rel_err_outputs2/{model_name}-{str(target_layer)}-{seed}-rel_err.pt")
 
     handler.remove()
+    for rr_handler in range_restrict_handlers:
+        rr_handler.remove()
 
-    if TIME_MEASURE is not None:
-        average = mean(TIME_MEASURE)
-        data = {
-            "model": model_name,
-            "microop": microop,
-            "target_layer": str(target_layer),
-            "seed": seed,
-            "batch_size": batch_size,
-            "avg_time_per_batch": average,
-            "injection_type": str(injection_type),
-            "ETA": average * len(data_loader),
-        }
-        logger.info(f"ETA for full pass: {average*len(data_loader):.2f}s")
+    # if TIME_MEASURE is not None:
+    #     average = mean(TIME_MEASURE)
+    #     data = {
+    #         "model": model_name,
+    #         "microop": microop,
+    #         "target_layer": str(target_layer),
+    #         "seed": seed,
+    #         "batch_size": batch_size,
+    #         "avg_time_per_batch": average,
+    #         "injection_type": str(injection_type),
+    #         "ETA": average * len(data_loader),
+    #     }
+    #     logger.info(f"ETA for full pass: {average*len(data_loader):.2f}s")
 
-        eta_path = "data/eta_swfi_rel_err_large_val_LATS.csv"
+    #     eta_path = "data/eta_swfi_rel_err_large_val_LATS.csv"
 
-        if os.path.exists(eta_path):
-            df = pd.read_csv(eta_path)
-            data = pd.DataFrame([data])
-            df = pd.concat([df, data])
-            df.to_csv(eta_path, index=False)
-        else:
-            df = pd.DataFrame([data])
-            df.to_csv(eta_path, index=False)
+    #     if os.path.exists(eta_path):
+    #         df = pd.read_csv(eta_path)
+    #         data = pd.DataFrame([data])
+    #         df = pd.concat([df, data])
+    #         df.to_csv(eta_path, index=False)
+    #     else:
+    #         df = pd.DataFrame([data])
+    #         df.to_csv(eta_path, index=False)
 
 
 if __name__ == "__main__":

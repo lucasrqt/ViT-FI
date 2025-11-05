@@ -48,6 +48,17 @@ class LayerChoice(enum.Enum):
         return str(self.name)
 
 
+class RangeRestrictionMode(enum.Enum):
+    NONE = 0
+    CLAMP = 1
+    TO_ZERO = 2
+
+    def __str__(self):
+        return str(self.name)
+
+    def __repr__(self):
+        return str(self.name)
+
 class MicroopHook:
     """
     Class to inject faults into a specific micro-operation in a neural network model.
@@ -87,6 +98,7 @@ class MicroopHook:
         inj_type,
         seed=0,
         bit_position=DEFAULT_BIT_POSITION,
+        dataset_name=None,
     ):
         """
         Initializes the MicroopHook class.
@@ -101,6 +113,7 @@ class MicroopHook:
         self.injection_type = inj_type
         self.seed = seed
         self.bit_position = bit_position
+        self.dataset_name = dataset_name
 
     def __process_fault_model(self) -> tuple:
         """
@@ -139,7 +152,6 @@ class MicroopHook:
             module_input: The input to the module.
             module_output: The output of the module.
         """
-
         # Move the output to CPU for computations
         if self.model_name in configs.TEXT_MODELS and isinstance(module_output, tuple):
             faulty_output = module_output[0].clone().cpu()
@@ -246,31 +258,36 @@ class MicroopHook:
             if not hasattr(self, "_relative_errors") or self._relative_errors is None:
                 nb_bins = fault_model.columns.str.startswith("bin_").sum()
                 if not hasattr(self, "_bins") or self._bins is None:
-                    # self._bins = torch.tensor(
-                    #     ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
-                    # )
-                    # counts = torch.tensor(
-                    #     ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
-                    #     dtype=torch.float,
-                    # )
-                    # keep only bins and probabilities that have a relative error between -30% and 30%
-                                        # Filter out bins with absolute value > 0.3
-                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-                    for col in bin_cols:
-                        if abs(fault_model[col].item()) > 0.3:
-                            # Get the corresponding hist column
-                            hist_col = col.replace("bin_", "hist_")
-                            fault_model = fault_model.drop(columns=[col, hist_col])
                     
-                    # Get actual bin column names after filtering
-                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-                    hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
-                    
-                    self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
+                    #### if all fault model is considered
+                    self._bins = torch.tensor(
+                        ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
+                    )
                     counts = torch.tensor(
-                        [fault_model[col].item() for col in hist_cols],
+                        ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
                         dtype=torch.float,
                     )
+
+                   
+                    #### if threshing on relative error selection
+                    ## keep only bins and probabilities that have a relative error between -30% and 30%
+                    ## Filter out bins with absolute value > 0.3
+                    # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    # for col in bin_cols:
+                    #     if abs(fault_model[col].item()) > 0.3:
+                    #         # Get the corresponding hist column
+                    #         hist_col = col.replace("bin_", "hist_")
+                    #         fault_model = fault_model.drop(columns=[col, hist_col])
+                    
+                    # # Get actual bin column names after filtering
+                    # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    # hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
+                    
+                    # self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
+                    # counts = torch.tensor(
+                    #     [fault_model[col].item() for col in hist_cols],
+                    #     dtype=torch.float,
+                    # )
                     self._probs = counts / counts.sum()
 
                 self._relative_errors = self._bins[
@@ -340,23 +357,31 @@ class MicroopHook:
             if not hasattr(self, "_row_fault_values") or self._row_fault_values is None:
                 nb_bins = fault_model.columns.str.startswith("bin_").sum()
                 if not hasattr(self, "_bins") or self._bins is None:
-                    # Filter out bins with absolute value > 0.3
-                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-                    for col in bin_cols:
-                        if abs(fault_model[col].item()) > 0.3:
-                            # Get the corresponding hist column
-                            hist_col = col.replace("bin_", "hist_")
-                            fault_model = fault_model.drop(columns=[col, hist_col])
-                    
-                    # Get actual bin column names after filtering
-                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-                    hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
-                    
-                    self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
+                    self._bins = torch.tensor(
+                        ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
+                    )
                     counts = torch.tensor(
-                        [fault_model[col].item() for col in hist_cols],
+                        ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
                         dtype=torch.float,
                     )
+                    
+                    ## Filter out bins with absolute value > 0.3
+                    # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    # for col in bin_cols:
+                    #     if abs(fault_model[col].item()) > 0.3:
+                    #         # Get the corresponding hist column
+                    #         hist_col = col.replace("bin_", "hist_")
+                    #         fault_model = fault_model.drop(columns=[col, hist_col])
+                    
+                    # # Get actual bin column names after filtering
+                    # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    # hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
+                    
+                    # self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
+                    # counts = torch.tensor(
+                    #     [fault_model[col].item() for col in hist_cols],
+                    #     dtype=torch.float,
+                    # )
                     self._probs = counts / counts.sum()
                 
                 # Generate fault values for the entire row (col_len elements)
@@ -388,23 +413,31 @@ class MicroopHook:
             if not hasattr(self, "_col_fault_values") or self._col_fault_values is None:
                 nb_bins = fault_model.columns.str.startswith("bin_").sum()
                 if not hasattr(self, "_bins") or self._bins is None:
-                    # Filter out bins with absolute value > 0.3
-                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-                    for col in bin_cols:
-                        if abs(fault_model[col].item()) > 0.3:
-                            # Get the corresponding hist column
-                            hist_col = col.replace("bin_", "hist_")
-                            fault_model = fault_model.drop(columns=[col, hist_col])
-                    
-                    # Get actual bin column names after filtering
-                    bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-                    hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
-                    
-                    self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
+                    self._bins = torch.tensor(
+                        ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
+                    )
                     counts = torch.tensor(
-                        [fault_model[col].item() for col in hist_cols],
+                        ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
                         dtype=torch.float,
                     )
+
+                    # # Filter out bins with absolute value > 0.3
+                    # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    # for col in bin_cols:
+                    #     if abs(fault_model[col].item()) > 0.3:
+                    #         # Get the corresponding hist column
+                    #         hist_col = col.replace("bin_", "hist_")
+                    #         fault_model = fault_model.drop(columns=[col, hist_col])
+                    
+                    # # Get actual bin column names after filtering
+                    # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+                    # hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
+                    
+                    # self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
+                    # counts = torch.tensor(
+                    #     [fault_model[col].item() for col in hist_cols],
+                    #     dtype=torch.float,
+                    # )
                     self._probs = counts / counts.sum()
                 
                 # Generate fault values for the entire column (row_len elements)
@@ -457,6 +490,21 @@ class MicroopHook:
         elif self.injection_type == InjectionType.BULLET_WAKE:
             raise ValueError(f"BULLET_WAKE not implemented yet.")
 
+        # then load model layer bounds to apply range restriction
+        # load from npz file, apply 10% tolerance on min/max
+        # then clamp faulty values to layer min/max (if outlier, set to min/max)
+        layer_bounds = np.load(os.path.join("data/model_layer_bounds", f"{self.model_name}-{self.dataset_name}-fp32-0-layer_bounds.npz"), allow_pickle=True)
+        layer_name = reconstruct_layer_name(self.model_name, self.microop, self.layer_id)
+
+        bounds = layer_bounds[layer_name].item()
+
+        layer_min, layer_max = bounds["min"], bounds["max"]
+        layer_min = layer_min * 1.1
+        layer_max = layer_max * 1.1
+
+        faulty_output_cpy = faulty_output.clone()
+        faulty_output = torch.clamp(faulty_output, layer_min, layer_max)
+
         # Move the output back to the original device
         if self.model_name in configs.TEXT_MODELS and isinstance(module_output, tuple):
             faulty_output = faulty_output.view(module_output[0].shape).to(module_output[0].device)
@@ -491,6 +539,38 @@ class GetLayerSize:
         # if self.microop_size > _LAYER_TO_HOOK[-1]:
         # _LAYER_TO_HOOK = [module, self.microop_size, self.input_size]
 
+
+class RangeRestrictionHook:
+    """
+    Class to restrict the range of values in a tensor.
+    This class is used to clamp the values of a tensor to a specified minimum and maximum range.
+    It is used in the context of fault injection in neural networks.
+    """
+
+    def __init__(self, model_name, min_value, max_value, mode):
+        self.model_name = model_name
+        self.min_value = min_value
+        self.max_value = max_value
+        self.mode = mode
+
+    def hook_fn_to_restrict_range(self, module, module_input, module_output) -> None:
+        if self.model_name in configs.TEXT_MODELS and isinstance(module_output, tuple):
+            output = module_output[0].clone()
+        else:
+            output = module_output.clone()
+
+        if self.mode == RangeRestrictionMode.CLAMP:
+            filtered = torch.clamp(output, self.min_value, self.max_value)
+        elif self.mode == RangeRestrictionMode.TO_ZERO:
+            output[(output < self.min_value) | (output > self.max_value)] = 0.0
+            filtered = output
+        else:
+            return output
+        
+        if self.model_name in configs.TEXT_MODELS and isinstance(module_output, tuple):
+            return (filtered, *module_output[1:])
+        else:
+            return filtered
 
 def get_fault_model(
     fault_model_file, model_name, microop, precision, threshold
@@ -584,6 +664,8 @@ def hook_microop(
     injection_type,
     seed=0,
     bit_position=DEFAULT_BIT_POSITION,
+    dataset_name=None,
+    range_restriction_mode=RangeRestrictionMode.NONE,
 ) -> torch.utils.hooks.RemovableHandle:
     """
     Hook a specific micro-operation in the model to inject faults.
@@ -598,17 +680,19 @@ def hook_microop(
     Returns:
         tuple: A tuple containing the hook and handler.
     """
-    # layers = list()
     handlers = list()
+    hookable_indices = list()
+
+    range_restrict_handlers = list()
 
     for layer_id, (name, layer) in enumerate(model.named_modules()):
         # print(layer.__class__.__name__.strip())
-
         if layer.__class__.__name__.strip() == microop:
             # layers.append((layer, layer_id))
             hook = GetLayerSize()
             handler = layer.register_forward_hook(hook.hook_fn_to_get_layer_size)
             handlers.append(handler)
+            hookable_indices.append(layer_id)
 
     if model_name in configs.TEXT_MODELS:
         _ = model(**dummy_input)
@@ -619,20 +703,43 @@ def hook_microop(
         handler.remove()
 
     layer = select_layer(target)
+
     hook = MicroopHook(
         model_name,
         microop,
         batch_size,
         nb_inputs,
-        layer_id,
+        target,
         fault_model,
         injection_type,
         seed=seed,
         bit_position=bit_position,
+        dataset_name=dataset_name,
     )
     handler = layer.register_forward_hook(hook.hook_fn_to_inject_fault)
 
-    return hook, handler
+    # protect every layer after the injection layer with range restriction
+    if range_restriction_mode != RangeRestrictionMode.NONE:
+        # load from npz file, apply 10% tolerance on min/max
+        layer_bounds = np.load(os.path.join("data/model_layer_bounds", f"{model_name}-{dataset_name}-fp32-0-layer_bounds.npz"), allow_pickle=True)
+
+        for layer_id, (name, layer) in enumerate(model.named_modules()):
+            if layer_id <= hookable_indices[target]:
+                continue
+
+            if name not in layer_bounds:
+                continue
+
+            bounds = layer_bounds[name].item()
+            layer_min, layer_max = bounds["min"], bounds["max"]
+
+            layer_min = layer_min * 1.1
+            layer_max = layer_max * 1.1
+            range_hook = RangeRestrictionHook(model_name, layer_min, layer_max, range_restriction_mode)
+            range_handler = layer.register_forward_hook(range_hook.hook_fn_to_restrict_range)
+            range_restrict_handlers.append(range_handler)
+
+    return hook, handler, range_restrict_handlers
 
 
 def run_inference(model, images, device):
@@ -655,3 +762,18 @@ def run_inference_gpt2(model, inputs, device):
         out_top_k = get_top_k_labels(logits, configs.TOP_1, dim=-1)
         out_top_k_prob = get_top_k_probs(logits, configs.TOP_2, dim=-1)
         return out_top_k, out_top_k_prob
+
+def reconstruct_layer_name(model_name, microop, layer_id):
+    if model_name == configs.GPT2:
+        base = configs.LAYER_NAMES_MAPPING[model_name][configs.GPT2_BLOCK]
+    elif model_name == configs.VIT_BASE_PATCH16_224:
+        base = configs.LAYER_NAMES_MAPPING[model_name][configs.BLOCK]
+    else:
+        raise ValueError(f"Model {model_name} not supported for layer name reconstruction.")
+    
+    base += str(layer_id)
+
+    if not microop in [configs.BLOCK, configs.GPT2_BLOCK]:
+        base += configs.LAYER_NAMES_MAPPING[model_name][microop]
+
+    return base
