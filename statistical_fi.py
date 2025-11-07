@@ -323,8 +323,7 @@ class MicroopHook:
             # valid_rel = rel_err[finite_mask]
 
             # faulty_output[valid_idx] *= 1 + valid_rel
-            faulty_output[err_indices] *= 1 + rel_err
-
+            faulty_output[err_indices] = faulty_output[err_indices] + (faulty_output[err_indices] * rel_err)
 
             # faulty_output[nan_indices] = np.nan
             # faulty_output[neginf_indices] = np.NINF
@@ -406,19 +405,17 @@ class MicroopHook:
                 self._row_fault_values.uniform_(1e-8, 1e2)
             
             # Apply the same fault to the same row in every batch element
-            faulty_output[:, row_idx, :] *= 1 + self._row_fault_values
+            faulty_output[:, row_idx, :] = faulty_output[:, row_idx, :] + (faulty_output[:, row_idx, :] * self._row_fault_values)
 
         elif self.injection_type == InjectionType.COL:
             # Corrupt the same column for each input in the batch
             # Input shape: [batch_size, row_len, col_len]
             
-            original_shape = faulty_output.shape
-            
-            if len(original_shape) != 3:
-                raise ValueError(f"COL injection expects 3D tensor [batch_size, row_len, col_len], got shape {original_shape}")
-            
-            batch_size, row_len, col_len = original_shape
-            
+            if len(module_output_shape) != 3:
+                raise ValueError(f"COL injection expects 3D tensor [batch_size, row_len, col_len], got shape {module_output_shape}")
+
+            batch_size, row_len, col_len = module_output_shape
+
             # Select which column to corrupt (use DEFAULT_COL or select randomly once)
             if not hasattr(self, "_selected_col") or self._selected_col is None:
                 self._selected_col = np.random.randint(0, col_len - 1)
@@ -464,11 +461,11 @@ class MicroopHook:
             # draw a vector of relative errors for the column once
             # tensor of size [col_len], values between 1e-8 and 1e2
             if not hasattr(self, "_col_fault_values") or self._col_fault_values is None:
-                self._col_fault_values = torch.empty(col_len, dtype=torch.float, device=faulty_output.device)
+                self._col_fault_values = torch.empty(row_len, dtype=torch.float, device=faulty_output.device)
                 self._col_fault_values.uniform_(1e-8, 1e2)
 
             # Apply the same fault to the same column in every batch element
-            faulty_output[:, :, col_idx] *= 1 + self._col_fault_values
+            faulty_output[:, :, col_idx] = faulty_output[:, :, col_idx] + (faulty_output[:, :, col_idx] * self._col_fault_values)
 
         elif self.injection_type == InjectionType.SINGLE:
             # Flip a specific bit at position [row_idx, col_idx] for each input in the batch

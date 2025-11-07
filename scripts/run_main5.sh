@@ -202,6 +202,11 @@ for model in "${models[@]}"; do
                     for it in "${injection_types[@]}"; do
                         for rrm in "${range_restriction_modes[@]}"; do
                             options+=" --range-restriction-mode $rrm"
+                            it_for_filename=$it
+                            if [[ $it == "SINGLE" ]]; then
+                                options+=" --bitflip-position $bitflip"
+                                it_for_filename+="--bit$bitflip"
+                            fi
                             if [[ $model == "swin"* ]]; then
                                 for microop in "${swin_microops[@]}"; do
                                     time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
