@@ -62,17 +62,17 @@ seeds=(
     # 493
     # 666
     # 31417
-    182036
-    29052001
+    # 182036
+    # 29052001
     # 35014520
     # 4294967295
     # 2796017452
     # 1084398730
-    # 3208799631
-    # 2357136044
-    # 2546248239
-    # 3071714933
-    # 3626093760
+    3208799631
+    2357136044
+    2546248239
+    3071714933
+    3626093760
     # 2588848963
     # 3684848379
     # 2340255427
@@ -206,25 +206,25 @@ for model in "${models[@]}"; do
                                 for microop in "${swin_microops[@]}"; do
                                     time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                     # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                    mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target"_it-"$it".csv data/"$current_time"_campaign/
+                                    mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                 done
                             elif [[ $model == "gpt2" ]]; then
                                 for microop in "${gpt2_microops[@]}"; do
                                     time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                     # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                    mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target"_it-"$it".csv data/"$current_time"_campaign/
+                                    mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                 done
                             elif [[ $model == "facebook/bart-large-mnli" ]]; then
                                 for microop in "${bart_microops[@]}"; do
                                     time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                     # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                    mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target"_it-"$it".csv data/"$current_time"_campaign/
+                                    mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                 done
                             else
                                 for microop in "${vit_microops[@]}"; do
                                     time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                     # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                    mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target"_it-"$it".csv data/"$current_time"_campaign/
+                                    mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                 done
                             fi
                         done

@@ -47,12 +47,14 @@ bart_microops=(
 injection_types=(
     # "RANDOM"
     # "FIXED"
-    "SINGLE"
+    # "SINGLE"
     # "ROW"
     # "COL"
+    "SINGLE_RANDOM"
 )
 
 bitflip_positions=(
+    "DUMMY"  # to be replaced in the script
     # "14"
 	# "15"
 	# "16"
@@ -60,9 +62,9 @@ bitflip_positions=(
 	# "18"
 	# "19"
 	# "20"
-	"21"
-	"22"
-	"23"
+	# "21"
+	# "22"
+	# "23"
 )
 
 device="cuda:0"
@@ -72,15 +74,15 @@ batchsize=32
 # seed=0
 seeds=(
     0
-    # 493
-    # 666
-    # 31417
-    # 182036
-    # 29052001
-    # 35014520
-    # 4294967295
-    # 2796017452
-    # 1084398730
+    493
+    666
+    31417
+    182036
+    29052001
+    35014520
+    4294967295
+    2796017452
+    1084398730
     # 3208799631
     # 2357136044
     # 2546248239
@@ -182,9 +184,9 @@ targets=(
     # "BEFORE_LAST"
     "0"
     # "1"
-    # "5"
+    "5"
     # "9"
-    # "11"
+    "11"
 )
 
 range_restriction_modes=(
@@ -196,11 +198,17 @@ range_restriction_modes=(
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
 # options="--inject-on-correct-predictions --shuffle-dataset"
 # options="--inject-on-correct-predictions"
-options="--nsamples 32 --verbose --inject-on-correct-predictions"
+options="--nsamples 2048 --verbose --inject-on-correct-predictions"
 
 # creating folder for results
 current_time=$(date "+%Y-%m-%d-%H-%M-%S")
 mkdir -p data/"$current_time"_campaign
+
+#### python pattern for file_names :
+## base_name = f"{model_name}-{dataset_name}-{precision}-{microop}-{float_threshold_FM}-{seed}-layer_{str(layer)}-it_{str(it)}-rrmode_{str(rr_mode)}"
+## if seed_specific is not None:
+##     base_name += f"-seedspecif_{seed_specific}"
+## return f"{base_name}.csv"
 
 for model in "${models[@]}"; do
     if [[ $model == "gpt2" || $model == "facebook/bart-large-mnli" ]]; then
@@ -225,25 +233,25 @@ for model in "${models[@]}"; do
                                     for microop in "${swin_microops[@]}"; do
                                         time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                         # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                        mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target"_it-"$it_for_filename".csv data/"$current_time"_campaign/
+                                        mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                     done
                                 elif [[ $model == "gpt2" ]]; then
                                     for microop in "${gpt2_microops[@]}"; do
                                         time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                         # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                        mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target"_it-"$it_for_filename".csv data/"$current_time"_campaign/
+                                        mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                     done
                                 elif [[ $model == "facebook/bart-large-mnli" ]]; then
                                     for microop in "${bart_microops[@]}"; do
                                         time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                         # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                        mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target"_it-"$it_for_filename".csv data/"$current_time"_campaign/
+                                        mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                     done
                                 else
                                     for microop in "${vit_microops[@]}"; do
                                         time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                         # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                        mv data/"$model"_"$dataset"_"$prec"_"$microop"_*_"$seed"_layer-"$target"_it-"$it_for_filename".csv data/"$current_time"_campaign/
+                                        mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                     done
                                 fi
                             done

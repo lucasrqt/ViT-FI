@@ -542,7 +542,7 @@ def main() -> None:
 
     injection_type_for_file = injection_type
     if injection_type == statistical_fi.InjectionType.SINGLE:
-        injection_type_for_file = f"SINGLE--bit{bitflip_position}"
+        injection_type_for_file = f"{str(injection_type)}_bit{bitflip_position}"
     result_file = result_data_utils.get_result_filename(
         model_name,
         dataset_name,
@@ -553,6 +553,7 @@ def main() -> None:
         target_layer,
         injection_type_for_file,
         specific_seed,
+        range_restriction_mode,
     )
     result_df = result_data_utils.init_result_data(
         configs.RESULTS_DIR, result_file, configs.RESULT_COLUMS

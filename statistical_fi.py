@@ -24,6 +24,7 @@ class InjectionType(enum.Enum):
     COL = 4
     BULLET_WAKE = 5 # ONLY for 3D microop like one of Swin
     SINGLE_RANDOM = 6
+    MULTIPLE_RANDOM = 7
 
     def __str__(self):
         return str(self.name)
@@ -100,6 +101,7 @@ class MicroopHook:
         seed=0,
         bit_position=DEFAULT_BIT_POSITION,
         dataset_name=None,
+        rr_mode=RangeRestrictionMode.NONE,
     ):
         """
         Initializes the MicroopHook class.
@@ -115,6 +117,9 @@ class MicroopHook:
         self.seed = seed
         self.bit_position = bit_position
         self.dataset_name = dataset_name
+        self.rr_min_value = None
+        self.rr_max_value = None
+        self.rr_mode = rr_mode
 
     def __process_fault_model(self) -> tuple:
         """
@@ -154,10 +159,15 @@ class MicroopHook:
             module_output: The output of the module.
         """
         # Move the output to CPU for computations
+        module_output_device = None
         if self.model_name in configs.TEXT_MODELS and isinstance(module_output, tuple):
+            module_output_device = module_output[0].device
             faulty_output = module_output[0].clone().cpu()
         else:
+            module_output_device = module_output.device
             faulty_output = module_output.clone().cpu()
+
+        module_output_shape = faulty_output.shape
 
         # Gathering the fault model
         fault_model, altered_floats, float_to_nan, nb_neginf, nb_posinf = (
@@ -539,7 +549,7 @@ class MicroopHook:
         elif self.injection_type == InjectionType.SINGLE_RANDOM:
             # select a random position for each input in the batch
             # Input shape: [batch_size, height, width]
-            faulty_output = faulty_output.view(module_output.shape).to(module_output.device)
+            faulty_output = faulty_output.view(module_output_shape).to(module_output_device)
             batch_size, height, width = faulty_output.shape
 
             if not hasattr(self, "_bullet_row") or self._bullet_row is None:
@@ -549,38 +559,37 @@ class MicroopHook:
             # check for the faulty value to apply
             # select a random fp32 value (between min_float and max_float)
             if not hasattr(self, "_faulty_value") or self._faulty_value is None:
-                min_float = np.finfo(np.float32).min
-                max_float = np.finfo(np.float32).max
-                self._faulty_value = np.random.uniform(min_float, max_float)
+                self._faulty_value = torch.FloatTensor(1).uniform_(1e-8, 1e2)
 
             row_idx = self._bullet_row
             col_idx = self._bullet_col
 
             faulty_output[: , row_idx, col_idx] = self._faulty_value
-                
-
 
         # then load model layer bounds to apply range restriction
         # load from npz file, apply 10% tolerance on min/max
         # then clamp faulty values to layer min/max (if outlier, set to min/max)
-        layer_bounds = np.load(os.path.join("data/model_layer_bounds", f"{self.model_name}-{self.dataset_name}-fp32-0-layer_bounds.npz"), allow_pickle=True)
-        layer_name = reconstruct_layer_name(self.model_name, self.microop, self.layer_id)
+        if self.rr_mode != RangeRestrictionMode.NONE:
+            if self.rr_min_value is None or self.rr_max_value is None:
+                layer_bounds = np.load(os.path.join("data/model_layer_bounds", f"{self.model_name}-{self.dataset_name}-fp32-0-layer_bounds.npz"), allow_pickle=True)
+                layer_name = reconstruct_layer_name(self.model_name, self.microop, self.layer_id)
 
-        bounds = layer_bounds[layer_name].item()
+                bounds = layer_bounds[layer_name].item()
 
-        layer_min, layer_max = bounds["min"], bounds["max"]
-        layer_min = layer_min * 1.1
-        layer_max = layer_max * 1.1
+                layer_min, layer_max = bounds["min"], bounds["max"]
+                self.rr_min_value = layer_min * 1.1
+                self.rr_max_value = layer_max * 1.1
 
-        faulty_output_cpy = faulty_output.clone()
-        faulty_output = torch.clamp(faulty_output, layer_min, layer_max)
+            if self.rr_mode == RangeRestrictionMode.CLAMP:
+                faulty_output = torch.clamp(faulty_output, self.rr_min_value, self.rr_max_value)
+            elif self.rr_mode == RangeRestrictionMode.TO_ZERO:
+                faulty_output[(faulty_output < self.rr_min_value) | (faulty_output > self.rr_max_value)] = 0.0
 
         # Move the output back to the original device
+        faulty_output = faulty_output.view(module_output_shape).to(module_output_device)
         if self.model_name in configs.TEXT_MODELS and isinstance(module_output, tuple):
-            faulty_output = faulty_output.view(module_output[0].shape).to(module_output[0].device)
             return (faulty_output, *module_output[1:])
         else:
-            faulty_output = faulty_output.view(module_output.shape).to(module_output.device)
             return faulty_output
         
 
@@ -785,6 +794,7 @@ def hook_microop(
         seed=seed,
         bit_position=bit_position,
         dataset_name=dataset_name,
+        rr_mode=range_restriction_mode,
     )
     handler = layer.register_forward_hook(hook.hook_fn_to_inject_fault)
 

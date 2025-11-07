@@ -4,7 +4,7 @@ import sys
 
 sys.path.append(os.path.abspath(".."))
 
-from statistical_fi import LayerChoice, InjectionType
+from statistical_fi import LayerChoice, InjectionType, RangeRestrictionMode
 
 
 def get_result_filename(
@@ -17,10 +17,12 @@ def get_result_filename(
     layer: LayerChoice,
     it: InjectionType,
     seed_specific: int = None,
+    rr_mode: RangeRestrictionMode = RangeRestrictionMode.NONE
 ) -> str:
+    base_name = f"{model_name}-{dataset_name}-{precision}-{microop}-{float_threshold_FM}-{seed}-layer_{str(layer)}-it_{str(it)}-rrmode_{str(rr_mode)}"
     if seed_specific is not None:
-        return f"{model_name}_{dataset_name}_{precision}_{microop}_{float_threshold_FM}_{seed}_layer-{str(layer)}_it-{str(it)}_seed-specif-{seed_specific}.csv"
-    return f"{model_name}_{dataset_name}_{precision}_{microop}_{float_threshold_FM}_{seed}_layer-{str(layer)}_it-{str(it)}.csv"
+        base_name += f"-seedspecif_{seed_specific}"
+    return f"{base_name}.csv"
 
 
 def init_result_folder(data_path: str) -> None:
