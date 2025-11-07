@@ -262,7 +262,12 @@ def main() -> None:
             f"Microoperation {microop} not supported by the model {model_name}."
         )
 
-    logger.info(f"Model {model_name} on dataset {dataset_name} selected with {str(injection_type)}.")
+
+    firstlog_msg = f"Model {model_name} on dataset {dataset_name} selected with {str(injection_type)}"
+    if injection_type == statistical_fi.InjectionType.SINGLE:
+        firstlog_msg += f" (bitflip on bit {bitflip_position})"
+    firstlog_msg += "."
+    logger.info(firstlog_msg)
     if model_name in configs.VIT_CLASSIFICATION_CONFIGS:
         model = model_utils.get_model(model_name, precision)
         model_for_fault = model_utils.get_model(model_name, precision)
@@ -535,6 +540,9 @@ def main() -> None:
 
     logger.info(f"Injecting on {len(data_loader)} batches of size {batch_size}...")
 
+    injection_type_for_file = injection_type
+    if injection_type == statistical_fi.InjectionType.SINGLE:
+        injection_type_for_file = f"SINGLE--bit{bitflip_position}"
     result_file = result_data_utils.get_result_filename(
         model_name,
         dataset_name,
@@ -543,7 +551,7 @@ def main() -> None:
         fault_model_threshold,
         seed,
         target_layer,
-        injection_type,
+        injection_type_for_file,
         specific_seed,
     )
     result_df = result_data_utils.init_result_data(

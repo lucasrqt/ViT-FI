@@ -23,6 +23,7 @@ class InjectionType(enum.Enum):
     ROW = 3
     COL = 4
     BULLET_WAKE = 5 # ONLY for 3D microop like one of Swin
+    SINGLE_RANDOM = 6
 
     def __str__(self):
         return str(self.name)
@@ -349,45 +350,50 @@ class MicroopHook:
             
             # Select which row to corrupt (use DEFAULT_ROW or select randomly once)
             if not hasattr(self, "_selected_row") or self._selected_row is None:
-                self._selected_row = DEFAULT_ROW % row_len
+                self._selected_row = np.random.randint(0, row_len - 1)
             
             row_idx = self._selected_row
             
             # Generate fault values based on fault model for this entire row
-            if not hasattr(self, "_row_fault_values") or self._row_fault_values is None:
-                nb_bins = fault_model.columns.str.startswith("bin_").sum()
-                if not hasattr(self, "_bins") or self._bins is None:
-                    self._bins = torch.tensor(
-                        ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
-                    )
-                    counts = torch.tensor(
-                        ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
-                        dtype=torch.float,
-                    )
+            # if not hasattr(self, "_row_fault_values") or self._row_fault_values is None:
+            #     nb_bins = fault_model.columns.str.startswith("bin_").sum()
+            #     if not hasattr(self, "_bins") or self._bins is None:
+            #         self._bins = torch.tensor(
+            #             ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
+            #         )
+            #         counts = torch.tensor(
+            #             ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
+            #             dtype=torch.float,
+            #         )
                     
-                    ## Filter out bins with absolute value > 0.3
-                    # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-                    # for col in bin_cols:
-                    #     if abs(fault_model[col].item()) > 0.3:
-                    #         # Get the corresponding hist column
-                    #         hist_col = col.replace("bin_", "hist_")
-                    #         fault_model = fault_model.drop(columns=[col, hist_col])
+            #         ## Filter out bins with absolute value > 0.3
+            #         # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+            #         # for col in bin_cols:
+            #         #     if abs(fault_model[col].item()) > 0.3:
+            #         #         # Get the corresponding hist column
+            #         #         hist_col = col.replace("bin_", "hist_")
+            #         #         fault_model = fault_model.drop(columns=[col, hist_col])
                     
-                    # # Get actual bin column names after filtering
-                    # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-                    # hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
+            #         # # Get actual bin column names after filtering
+            #         # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+            #         # hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
                     
-                    # self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
-                    # counts = torch.tensor(
-                    #     [fault_model[col].item() for col in hist_cols],
-                    #     dtype=torch.float,
-                    # )
-                    self._probs = counts / counts.sum()
+            #         # self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
+            #         # counts = torch.tensor(
+            #         #     [fault_model[col].item() for col in hist_cols],
+            #         #     dtype=torch.float,
+            #         # )
+            #         self._probs = counts / counts.sum()
                 
-                # Generate fault values for the entire row (col_len elements)
-                self._row_fault_values = self._bins[
-                    torch.multinomial(self._probs, col_len, replacement=True)
-                ]
+            #     # Generate fault values for the entire row (col_len elements)
+            #     self._row_fault_values = self._bins[
+            #         torch.multinomial(self._probs, col_len, replacement=True)
+            #     ]
+
+            # draw a vector of relative errors for the row once
+            if not hasattr(self, "_row_fault_values") or self._row_fault_values is None:
+                self._row_fault_values = torch.empty(col_len, dtype=torch.float, device=faulty_output.device)
+                self._row_fault_values.uniform_(1e-8, 1e2)
             
             # Apply the same fault to the same row in every batch element
             faulty_output[:, row_idx, :] *= 1 + self._row_fault_values
@@ -405,46 +411,52 @@ class MicroopHook:
             
             # Select which column to corrupt (use DEFAULT_COL or select randomly once)
             if not hasattr(self, "_selected_col") or self._selected_col is None:
-                self._selected_col = DEFAULT_COL % col_len
+                self._selected_col = np.random.randint(0, col_len - 1)
             
             col_idx = self._selected_col
             
-            # Generate fault values based on fault model for this entire column
-            if not hasattr(self, "_col_fault_values") or self._col_fault_values is None:
-                nb_bins = fault_model.columns.str.startswith("bin_").sum()
-                if not hasattr(self, "_bins") or self._bins is None:
-                    self._bins = torch.tensor(
-                        ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
-                    )
-                    counts = torch.tensor(
-                        ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
-                        dtype=torch.float,
-                    )
+            # # Generate fault values based on fault model for this entire column
+            # if not hasattr(self, "_col_fault_values") or self._col_fault_values is None:
+            #     nb_bins = fault_model.columns.str.startswith("bin_").sum()
+            #     if not hasattr(self, "_bins") or self._bins is None:
+            #         self._bins = torch.tensor(
+            #             ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
+            #         )
+            #         counts = torch.tensor(
+            #             ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
+            #             dtype=torch.float,
+            #         )
 
-                    # # Filter out bins with absolute value > 0.3
-                    # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-                    # for col in bin_cols:
-                    #     if abs(fault_model[col].item()) > 0.3:
-                    #         # Get the corresponding hist column
-                    #         hist_col = col.replace("bin_", "hist_")
-                    #         fault_model = fault_model.drop(columns=[col, hist_col])
+            #         # # Filter out bins with absolute value > 0.3
+            #         # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+            #         # for col in bin_cols:
+            #         #     if abs(fault_model[col].item()) > 0.3:
+            #         #         # Get the corresponding hist column
+            #         #         hist_col = col.replace("bin_", "hist_")
+            #         #         fault_model = fault_model.drop(columns=[col, hist_col])
                     
-                    # # Get actual bin column names after filtering
-                    # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-                    # hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
+            #         # # Get actual bin column names after filtering
+            #         # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
+            #         # hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
                     
-                    # self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
-                    # counts = torch.tensor(
-                    #     [fault_model[col].item() for col in hist_cols],
-                    #     dtype=torch.float,
-                    # )
-                    self._probs = counts / counts.sum()
+            #         # self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
+            #         # counts = torch.tensor(
+            #         #     [fault_model[col].item() for col in hist_cols],
+            #         #     dtype=torch.float,
+            #         # )
+            #         self._probs = counts / counts.sum()
                 
-                # Generate fault values for the entire column (row_len elements)
-                self._col_fault_values = self._bins[
-                    torch.multinomial(self._probs, row_len, replacement=True)
-                ]
+            #     # Generate fault values for the entire column (row_len elements)
+            #     self._col_fault_values = self._bins[
+            #         torch.multinomial(self._probs, row_len, replacement=True)
+            #     ]
             
+            # draw a vector of relative errors for the column once
+            # tensor of size [col_len], values between 1e-8 and 1e2
+            if not hasattr(self, "_col_fault_values") or self._col_fault_values is None:
+                self._col_fault_values = torch.empty(col_len, dtype=torch.float, device=faulty_output.device)
+                self._col_fault_values.uniform_(1e-8, 1e2)
+
             # Apply the same fault to the same column in every batch element
             faulty_output[:, :, col_idx] *= 1 + self._col_fault_values
 
@@ -488,7 +500,65 @@ class MicroopHook:
                 faulty_output[b, row_idx, col_idx] = corrupted_float
 
         elif self.injection_type == InjectionType.BULLET_WAKE:
-            raise ValueError(f"BULLET_WAKE not implemented yet.")
+            # first, the same position for every input in the batch
+            # Input shape: [batch_size, height, width]
+            faulty_output = faulty_output.view(module_output.shape).to(module_output.device)
+
+            if len(faulty_output.shape) != 3:
+                raise ValueError(f"BULLET_WAKE injection expects 3D tensor [batch_size, height, width], got shape {faulty_output.shape}")
+
+            batch_size, height, width = faulty_output.shape
+
+            # Select position to corrupt (select once and reuse)
+            if not hasattr(self, "_bullet_row") or self._bullet_row is None:
+                self._bullet_row = np.random.randint(0, height - 1)
+                self._bullet_col = np.random.randint(0, width - 1)
+
+            row_idx = self._bullet_row
+            col_idx = self._bullet_col
+
+            for i in range(batch_size):
+                # Get the element to corrupt
+                element = faulty_output[i, row_idx, col_idx].item()
+
+                # Convert float to its integer bit representation (float32)
+                element_bytes = struct.pack('f', element)
+                element_int = struct.unpack('I', element_bytes)[0]
+
+                # Flip the specified bit (self.bit_position)
+                bit_mask = 1 << self.bit_position
+                corrupted_int = element_int ^ bit_mask
+
+                # Convert back to float
+                corrupted_bytes = struct.pack('I', corrupted_int)
+                corrupted_float = struct.unpack('f', corrupted_bytes)[0]
+
+                # Update the tensor
+                faulty_output[i, row_idx, col_idx] = corrupted_float
+            
+        elif self.injection_type == InjectionType.SINGLE_RANDOM:
+            # select a random position for each input in the batch
+            # Input shape: [batch_size, height, width]
+            faulty_output = faulty_output.view(module_output.shape).to(module_output.device)
+            batch_size, height, width = faulty_output.shape
+
+            if not hasattr(self, "_bullet_row") or self._bullet_row is None:
+                self._bullet_row = np.random.randint(0, height - 1)
+                self._bullet_col = np.random.randint(0, width - 1)
+
+            # check for the faulty value to apply
+            # select a random fp32 value (between min_float and max_float)
+            if not hasattr(self, "_faulty_value") or self._faulty_value is None:
+                min_float = np.finfo(np.float32).min
+                max_float = np.finfo(np.float32).max
+                self._faulty_value = np.random.uniform(min_float, max_float)
+
+            row_idx = self._bullet_row
+            col_idx = self._bullet_col
+
+            faulty_output[: , row_idx, col_idx] = self._faulty_value
+                
+
 
         # then load model layer bounds to apply range restriction
         # load from npz file, apply 10% tolerance on min/max
