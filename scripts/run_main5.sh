@@ -46,10 +46,10 @@ bart_microops=(
 
 injection_types=(
     # "RANDOM"
-    # "FIXED"
+    "FIXED"
     # "SINGLE"
-    "ROW"
-    "COL"
+    # "ROW"
+    # "COL"
 )
 
 device="cuda:0"
