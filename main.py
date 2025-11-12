@@ -12,6 +12,7 @@ from statistics import mean
 import os
 import cli.logger_formatter as logger_formatter
 from cli.parsers import MainParser
+from filelock import FileLock
 
 from transformers import GPT2Tokenizer, GPT2ForSequenceClassification, AutoModelForSequenceClassification, AutoTokenizer
 from datasets import load_dataset
@@ -609,30 +610,31 @@ def main() -> None:
     for rr_handler in range_restrict_handlers:
         rr_handler.remove()
 
-    # if TIME_MEASURE is not None:
-    #     average = mean(TIME_MEASURE)
-    #     data = {
-    #         "model": model_name,
-    #         "microop": microop,
-    #         "target_layer": str(target_layer),
-    #         "seed": seed,
-    #         "batch_size": batch_size,
-    #         "avg_time_per_batch": average,
-    #         "injection_type": str(injection_type),
-    #         "ETA": average * len(data_loader),
-    #     }
-    #     logger.info(f"ETA for full pass: {average*len(data_loader):.2f}s")
+    if TIME_MEASURE is not None:
+        average = mean(TIME_MEASURE)
+        data = {
+            "model": model_name,
+            "microop": microop,
+            "target_layer": str(target_layer),
+            "seed": seed,
+            "batch_size": batch_size,
+            "avg_time_per_batch": average,
+            "injection_type": str(injection_type),
+            "ETA": average * len(data_loader),
+        }
+        logger.info(f"ETA for full pass: {average*len(data_loader):.2f}s")
 
-    #     eta_path = "data/eta_swfi_rel_err_large_val_LATS.csv"
-
-    #     if os.path.exists(eta_path):
-    #         df = pd.read_csv(eta_path)
-    #         data = pd.DataFrame([data])
-    #         df = pd.concat([df, data])
-    #         df.to_csv(eta_path, index=False)
-    #     else:
-    #         df = pd.DataFrame([data])
-    #         df.to_csv(eta_path, index=False)
+        eta_path = "data/eta_swfi_LATS.csv"
+        lock_path = eta_path + ".lock"
+        with FileLock(lock_path):
+            if os.path.exists(eta_path):
+                df = pd.read_csv(eta_path)
+                data = pd.DataFrame([data])
+                df = pd.concat([df, data])
+                df.to_csv(eta_path, index=False)
+            else:
+                df = pd.DataFrame([data])
+                df.to_csv(eta_path, index=False)
 
 
 if __name__ == "__main__":
