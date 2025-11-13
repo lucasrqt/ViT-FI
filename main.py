@@ -352,32 +352,59 @@ def main() -> None:
         
         dataset, task = dataset_name.split("_")
         raw_dataset = load_dataset(dataset, task)
+        raw_dataset = raw_dataset.filter(lambda x: x["label"] != -1)
 
         # Preprocess MNLI samples (premise, hypothesis)
         # ----------------------------
         # Task-specific preprocessing
         # ----------------------------
         max_length = configs.TEXT_TASKS_MAX_LENGTH[dataset_name]
-        def preprocess(example):
-            return tokenizer(
-                example["premise"],
-                example["hypothesis"],
-                padding="max_length",
-                truncation=True,
-                max_length=max_length,
-            )
+        # After loading and before renaming to "labels"
 
-        encoded_dataset = raw_dataset.map(preprocess, batched=True)
-        encoded_dataset = encoded_dataset.rename_column("label", "labels")
+        label_map = {0: 2, 1: 1, 2: 0}
+
+        def preprocess(batch):
+            tokenized = dict(
+                tokenizer(
+                    batch["premise"],
+                    batch["hypothesis"],
+                    padding="max_length",
+                    truncation=True,
+                    max_length=max_length,
+                )
+            )
+            tokenized["labels"] = [label_map[label] for label in batch["label"]]
+            return tokenized
+
+        validation_key = "validation_matched"
+        encoded_dataset = raw_dataset[validation_key].map(preprocess, batched=True)
         encoded_dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
 
+
         # Use "validation_matched" split for consistency
-        validation_key = "validation_matched"
         data_loader = torch.utils.data.DataLoader(
-            encoded_dataset[validation_key],
+            encoded_dataset,
             batch_size=batch_size,
             shuffle=shuffle_dataset,
         )
+
+        if inject_on_corr_preds:
+            del data_loader
+            df = pd.read_csv(f"data/{model_name}-{dataset_name}-predictions.csv")
+            df["confidence"] = df["top1_prob"] - df["top2_prob"]
+            df = df.sort_values(by="confidence", ascending=True)
+            df = df[df["true_label"] == df["pred_class"]]
+            if nsamples > 0:
+                df = df.head(nsamples)
+            indices = df.index.tolist()
+            subset = encoded_dataset.select(indices)
+
+            data_loader = torch.utils.data.DataLoader(
+                subset,
+                batch_size=batch_size,
+                shuffle=shuffle_dataset,
+            )
+
     elif model_name == configs.GPT2:
         logger.debug("Text model selected.")
         # ----------------------------
@@ -446,6 +473,7 @@ def main() -> None:
         )
 
         if inject_on_corr_preds:
+            del data_loader
             df = pd.read_csv(f"data/{model_name}-{dataset_name}-predictions.csv")
             df["confidence"] = df["top1_prob"] - df["top2_prob"]
             df = df.sort_values(by="confidence", ascending=True)
@@ -460,7 +488,6 @@ def main() -> None:
                 batch_size=batch_size,
                 shuffle=shuffle_dataset,
             )
-
 
     # if nsamples > 0:
     #     subset_indices = list(range(nsamples))

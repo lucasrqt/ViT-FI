@@ -5,9 +5,9 @@ script="main.py"
 # Run the tests
 models=(
     # "vit_base_patch16_224"
-    "swin_base_patch4_window7_224"
+    # "swin_base_patch4_window7_224"
     # "gpt2"
-    # "facebook/bart-large-mnli"
+    "facebook/bart-large-mnli"
 )
 
 precision=(
@@ -186,9 +186,10 @@ targets=(
     # "BEFORE_LAST"
     "0"
     # "1"
+    "5"
     "11"
     # "9"
-    "23"
+    # "23"
 )
 
 range_restriction_modes=(
