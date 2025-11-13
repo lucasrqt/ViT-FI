@@ -349,125 +349,97 @@ class MicroopHook:
         #     faulty_output[corrupt_index] *= 1 +DEFAULT_CORRUPT_VALUE
         
         elif self.injection_type == InjectionType.ROW:
-            # Corrupt the same row for each input in the batch
-            # Input shape: [batch_size, row_len, col_len]
+            # ROW fault: corrupt same "row" across all batch samples
+            # Supports:
+            #   3D: [B, H, W]
+            #   4D: [B, H, W, C]
             
             original_shape = faulty_output.shape
+            dim = len(original_shape)
             
-            if len(original_shape) != 3:
-                raise ValueError(f"ROW injection expects 3D tensor [batch_size, row_len, col_len], got shape {original_shape}")
-            
-            batch_size, row_len, col_len = original_shape
-            
-            # Select which row to corrupt (use DEFAULT_ROW or select randomly once)
-            if not hasattr(self, "_selected_row") or self._selected_row is None:
-                self._selected_row = np.random.randint(0, row_len - 1)
-            
-            row_idx = self._selected_row
-            
-            # Generate fault values based on fault model for this entire row
-            # if not hasattr(self, "_row_fault_values") or self._row_fault_values is None:
-            #     nb_bins = fault_model.columns.str.startswith("bin_").sum()
-            #     if not hasattr(self, "_bins") or self._bins is None:
-            #         self._bins = torch.tensor(
-            #             ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
-            #         )
-            #         counts = torch.tensor(
-            #             ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
-            #             dtype=torch.float,
-            #         )
-                    
-            #         ## Filter out bins with absolute value > 0.3
-            #         # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-            #         # for col in bin_cols:
-            #         #     if abs(fault_model[col].item()) > 0.3:
-            #         #         # Get the corresponding hist column
-            #         #         hist_col = col.replace("bin_", "hist_")
-            #         #         fault_model = fault_model.drop(columns=[col, hist_col])
-                    
-            #         # # Get actual bin column names after filtering
-            #         # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-            #         # hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
-                    
-            #         # self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
-            #         # counts = torch.tensor(
-            #         #     [fault_model[col].item() for col in hist_cols],
-            #         #     dtype=torch.float,
-            #         # )
-            #         self._probs = counts / counts.sum()
-                
-            #     # Generate fault values for the entire row (col_len elements)
-            #     self._row_fault_values = self._bins[
-            #         torch.multinomial(self._probs, col_len, replacement=True)
-            #     ]
+            if dim not in (3, 4):
+                raise ValueError(f"ROW injection expects 3D or 4D tensor, got {original_shape}")
 
-            # draw a vector of relative errors for the row once
-            if not hasattr(self, "_row_fault_values") or self._row_fault_values is None:
-                self._row_fault_values = torch.empty(col_len, dtype=torch.float, device=faulty_output.device)
-                self._row_fault_values.uniform_(1e-8, 1e2)
-            
-            # Apply the same fault to the same row in every batch element
-            faulty_output[:, row_idx, :] = faulty_output[:, row_idx, :] + (faulty_output[:, row_idx, :] * self._row_fault_values)
+            if dim == 3:
+                batch_size, row_len, col_len = original_shape
+
+                # Select row to corrupt
+                if not hasattr(self, "_selected_row") or self._selected_row is None:
+                    self._selected_row = np.random.randint(0, row_len)
+                row_idx = self._selected_row
+
+                # Relative errors per column
+                if not hasattr(self, "_row_fault_values") or self._row_fault_values is None:
+                    self._row_fault_values = torch.empty(col_len, dtype=torch.float, device=faulty_output.device)
+                    self._row_fault_values.uniform_(1e-8, 1e2)
+
+                faulty_output[:, row_idx, :] += faulty_output[:, row_idx, :] * self._row_fault_values
+
+            else:  # 4D case [B, H, W, C]
+                batch_size, H, W, C = original_shape
+
+                # Select column (W) and depth (C)
+                if not hasattr(self, "_selected_w") or self._selected_w is None:
+                    self._selected_w = np.random.randint(0, W)
+                if not hasattr(self, "_selected_c") or self._selected_c is None:
+                    self._selected_c = np.random.randint(0, C)
+                w_idx = self._selected_w
+                c_idx = self._selected_c
+
+                # Draw relative errors for each row (H dimension)
+                if not hasattr(self, "_row_fault_values_4d") or self._row_fault_values_4d is None:
+                    self._row_fault_values_4d = torch.empty(H, dtype=torch.float, device=faulty_output.device)
+                    self._row_fault_values_4d.uniform_(1e-8, 1e2)
+
+                faulty_output[:, :, w_idx, c_idx] += faulty_output[:, :, w_idx, c_idx] * self._row_fault_values_4d
+
+        # -----------------------------------------------------------
 
         elif self.injection_type == InjectionType.COL:
-            # Corrupt the same column for each input in the batch
-            # Input shape: [batch_size, row_len, col_len]
+            # COL fault: corrupt same "column" across all batch samples
+            # Supports:
+            #   3D: [B, H, W]
+            #   4D: [B, H, W, C]
             
-            if len(module_output_shape) != 3:
-                raise ValueError(f"COL injection expects 3D tensor [batch_size, row_len, col_len], got shape {module_output_shape}")
-
-            batch_size, row_len, col_len = module_output_shape
-
-            # Select which column to corrupt (use DEFAULT_COL or select randomly once)
-            if not hasattr(self, "_selected_col") or self._selected_col is None:
-                self._selected_col = np.random.randint(0, col_len - 1)
+            module_output_shape = faulty_output.shape
+            dim = len(module_output_shape)
             
-            col_idx = self._selected_col
-            
-            # # Generate fault values based on fault model for this entire column
-            # if not hasattr(self, "_col_fault_values") or self._col_fault_values is None:
-            #     nb_bins = fault_model.columns.str.startswith("bin_").sum()
-            #     if not hasattr(self, "_bins") or self._bins is None:
-            #         self._bins = torch.tensor(
-            #             ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
-            #         )
-            #         counts = torch.tensor(
-            #             ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
-            #             dtype=torch.float,
-            #         )
+            if dim not in (3, 4):
+                raise ValueError(f"COL injection expects 3D or 4D tensor, got {module_output_shape}")
 
-            #         # # Filter out bins with absolute value > 0.3
-            #         # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-            #         # for col in bin_cols:
-            #         #     if abs(fault_model[col].item()) > 0.3:
-            #         #         # Get the corresponding hist column
-            #         #         hist_col = col.replace("bin_", "hist_")
-            #         #         fault_model = fault_model.drop(columns=[col, hist_col])
-                    
-            #         # # Get actual bin column names after filtering
-            #         # bin_cols = [col for col in fault_model.columns if col.startswith("bin_")]
-            #         # hist_cols = [col for col in fault_model.columns if col.startswith("hist_")]
-                    
-            #         # self._bins = torch.tensor([fault_model[col].item() for col in bin_cols])
-            #         # counts = torch.tensor(
-            #         #     [fault_model[col].item() for col in hist_cols],
-            #         #     dtype=torch.float,
-            #         # )
-            #         self._probs = counts / counts.sum()
-                
-            #     # Generate fault values for the entire column (row_len elements)
-            #     self._col_fault_values = self._bins[
-            #         torch.multinomial(self._probs, row_len, replacement=True)
-            #     ]
-            
-            # draw a vector of relative errors for the column once
-            # tensor of size [col_len], values between 1e-8 and 1e2
-            if not hasattr(self, "_col_fault_values") or self._col_fault_values is None:
-                self._col_fault_values = torch.empty(row_len, dtype=torch.float, device=faulty_output.device)
-                self._col_fault_values.uniform_(1e-8, 1e2)
+            if dim == 3:
+                batch_size, row_len, col_len = module_output_shape
 
-            # Apply the same fault to the same column in every batch element
-            faulty_output[:, :, col_idx] = faulty_output[:, :, col_idx] + (faulty_output[:, :, col_idx] * self._col_fault_values)
+                # Select column to corrupt
+                if not hasattr(self, "_selected_col") or self._selected_col is None:
+                    self._selected_col = np.random.randint(0, col_len)
+                col_idx = self._selected_col
+
+                # Relative errors per row
+                if not hasattr(self, "_col_fault_values") or self._col_fault_values is None:
+                    self._col_fault_values = torch.empty(row_len, dtype=torch.float, device=faulty_output.device)
+                    self._col_fault_values.uniform_(1e-8, 1e2)
+
+                faulty_output[:, :, col_idx] += faulty_output[:, :, col_idx] * self._col_fault_values
+
+            else:  # 4D case [B, H, W, C]
+                batch_size, H, W, C = module_output_shape
+
+                # Select row (H) and depth (C)
+                if not hasattr(self, "_selected_h") or self._selected_h is None:
+                    self._selected_h = np.random.randint(0, H)
+                if not hasattr(self, "_selected_c") or self._selected_c is None:
+                    self._selected_c = np.random.randint(0, C)
+                h_idx = self._selected_h
+                c_idx = self._selected_c
+
+                # Draw relative errors for each column (W dimension)
+                if not hasattr(self, "_col_fault_values_4d") or self._col_fault_values_4d is None:
+                    self._col_fault_values_4d = torch.empty(W, dtype=torch.float, device=faulty_output.device)
+                    self._col_fault_values_4d.uniform_(1e-8, 1e2)
+
+                faulty_output[:, h_idx, :, c_idx] += faulty_output[:, h_idx, :, c_idx] * self._col_fault_values_4d
+
 
         elif self.injection_type == InjectionType.SINGLE:
             # Flip a specific bit at position [row_idx, col_idx] for each input in the batch
@@ -513,8 +485,8 @@ class MicroopHook:
             # Input shape: [batch_size, height, width]
             faulty_output = faulty_output.view(module_output.shape).to(module_output.device)
 
-            if len(faulty_output.shape) != 3:
-                raise ValueError(f"BULLET_WAKE injection expects 3D tensor [batch_size, height, width], got shape {faulty_output.shape}")
+            if len(faulty_output.shape) != 4:
+                raise ValueError(f"BULLET_WAKE injection expects 4D tensor [batch_size, depth, height, width], got shape {faulty_output.shape}")
 
             batch_size, height, width = faulty_output.shape
 

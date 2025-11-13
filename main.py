@@ -404,6 +404,8 @@ def main() -> None:
                 batch_size=batch_size,
                 shuffle=shuffle_dataset,
             )
+            logger.info(f"{len(subset)} correct predictions found.")
+            logger.info("Injecting faults on correct predictions only.")
 
     elif model_name == configs.GPT2:
         logger.debug("Text model selected.")
@@ -488,6 +490,8 @@ def main() -> None:
                 batch_size=batch_size,
                 shuffle=shuffle_dataset,
             )
+            logger.info(f"{len(subset)} correct predictions found.")
+            logger.info("Injecting faults on correct predictions only.")
 
     # if nsamples > 0:
     #     subset_indices = list(range(nsamples))
