@@ -10,7 +10,7 @@ import struct
 _LAYER_TO_HOOK = [1e-30]
 _HOOKABLE_LAYERS = []
 
-MODULE, MICROOP_SIZE, INPUT_SIZE = 0, 1, 2
+MODULE, MICROOP_SIZE, INPUT_SIZE, LAYER_FULL_NAME = 0, 1, 2, 3
 
 DEFAULT_CORRUPT_VALUE = 1e-4
 DEFAULT_COL, DEFAULT_ROW = 0, 0
@@ -98,6 +98,7 @@ class MicroopHook:
         layer_id,
         fault_model,
         inj_type,
+        layer_full_name,
         seed=0,
         bit_position=DEFAULT_BIT_POSITION,
         dataset_name=None,
@@ -114,6 +115,7 @@ class MicroopHook:
         self.last_batch_size = nb_inputs % self.batch_size
         self.save_critical_logits = False
         self.injection_type = inj_type
+        self.layer_full_name = layer_full_name
         self.seed = seed
         self.bit_position = bit_position
         self.dataset_name = dataset_name
@@ -569,9 +571,9 @@ class MicroopHook:
         if self.rr_mode != RangeRestrictionMode.NONE:
             if self.rr_min_value is None or self.rr_max_value is None:
                 layer_bounds = np.load(os.path.join("data/model_layer_bounds", f"{self.model_name}-{self.dataset_name}-fp32-0-layer_bounds.npz"), allow_pickle=True)
-                layer_name = reconstruct_layer_name(self.model_name, self.microop, self.layer_id)
+                # layer_name = reconstruct_layer_name(self.model_name, self.microop, self.layer_id)
 
-                bounds = layer_bounds[layer_name].item()
+                bounds = layer_bounds[self.layer_full_name].item()
 
                 layer_min, layer_max = bounds["min"], bounds["max"]
                 self.rr_min_value = layer_min * 1.1
@@ -599,7 +601,8 @@ class GetLayerSize:
     It is used in the context of fault injection in neural networks.
     """
 
-    def __init__(self):
+    def __init__(self, name):
+        self.name = name
         self.input_size = 0
         self.microop_size = 0
 
@@ -610,7 +613,7 @@ class GetLayerSize:
         self.input_size = sum(p.numel() for p in module_input)
         self.microop_size = layer_num_parameters * self.input_size
 
-        _HOOKABLE_LAYERS.append((module, self.microop_size, self.input_size))
+        _HOOKABLE_LAYERS.append((module, self.microop_size, self.input_size, self.name))
 
         # if self.microop_size > _LAYER_TO_HOOK[-1]:
         # _LAYER_TO_HOOK = [module, self.microop_size, self.input_size]
@@ -724,7 +727,7 @@ def select_layer(target: int) -> torch.nn.Module:
         torch.nn.Module: The selected layer.
     """
     if target >= 0 and target < len(_HOOKABLE_LAYERS):
-        return _HOOKABLE_LAYERS[target][MODULE]
+        return _HOOKABLE_LAYERS[target][MODULE], _HOOKABLE_LAYERS[target][LAYER_FULL_NAME]
     else:
         return ValueError("Invalid layer choice.")
 
@@ -763,9 +766,12 @@ def hook_microop(
 
     for layer_id, (name, layer) in enumerate(model.named_modules()):
         # print(layer.__class__.__name__.strip())
+        if model_name == configs.FACEBOOK_BART_DASH and ".fc2" in name:
+            layer.__class__.__name__ = configs.BART_MLP
+
         if layer.__class__.__name__.strip() == microop:
             # layers.append((layer, layer_id))
-            hook = GetLayerSize()
+            hook = GetLayerSize(name)
             handler = layer.register_forward_hook(hook.hook_fn_to_get_layer_size)
             handlers.append(handler)
             hookable_indices.append(layer_id)
@@ -778,7 +784,7 @@ def hook_microop(
     for handler in handlers:
         handler.remove()
 
-    layer = select_layer(target)
+    layer, name = select_layer(target)
 
     hook = MicroopHook(
         model_name,
@@ -788,6 +794,7 @@ def hook_microop(
         target,
         fault_model,
         injection_type,
+        layer_full_name=name,
         seed=seed,
         bit_position=bit_position,
         dataset_name=dataset_name,
@@ -816,7 +823,7 @@ def hook_microop(
             range_handler = layer.register_forward_hook(range_hook.hook_fn_to_restrict_range)
             range_restrict_handlers.append(range_handler)
 
-    return hook, handler, range_restrict_handlers
+    return hook, handler, range_restrict_handlers, 
 
 
 def run_inference(model, images, device):

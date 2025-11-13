@@ -264,7 +264,7 @@ def main() -> None:
         )
 
 
-    firstlog_msg = f"Model {model_name} on dataset {dataset_name} selected with {str(injection_type)}"
+    firstlog_msg = f"Model {model_name}, microop {microop} on dataset {dataset_name} selected with {str(injection_type)}"
     if injection_type == statistical_fi.InjectionType.SINGLE:
         firstlog_msg += f" (bitflip on bit {bitflip_position})"
     firstlog_msg += "."
@@ -529,6 +529,7 @@ def main() -> None:
             configs.BART_ENCODER: configs.BLOCK,
             configs.BART_DECODER: configs.BLOCK,
             configs.BART_SDPA_ATTENTION: configs.ATTENTION,
+            configs.BART_MLP: configs.MLP,
         }
         mapped_microop = fault_model_mapping.get(microop, microop)
         fault_model = statistical_fi.get_fault_model(

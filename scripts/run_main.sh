@@ -42,6 +42,7 @@ bart_microops=(
     "BartEncoderLayer"
     "BartDecoderLayer"
     "BartSdpaAttention"
+    "BartMlp"
 )
 
 injection_types=(
@@ -50,7 +51,7 @@ injection_types=(
     # "SINGLE"
     "ROW"
     "COL"
-    "SINGLE_RANDOM"
+    # "SINGLE_RANDOM"
 )
 
 bitflip_positions=(
@@ -186,8 +187,8 @@ targets=(
     # "BEFORE_LAST"
     "0"
     # "1"
-    "5"
-    "11"
+    # "5"
+    # "11"
     # "9"
     # "23"
 )
@@ -202,7 +203,7 @@ range_restriction_modes=(
 # options="--inject-on-correct-predictions --shuffle-dataset"
 # options="--inject-on-correct-predictions"
 # options="--nsamples 2048 --verbose --inject-on-correct-predictions"
-options="--nsamples 512 --verbose --inject-on-correct-predictions"
+options="--nsamples 32 --verbose --inject-on-correct-predictions"
 
 # creating folder for results
 current_time=$(date "+%Y-%m-%d-%H-%M-%S")
@@ -249,6 +250,7 @@ for model in "${models[@]}"; do
                                     for microop in "${bart_microops[@]}"; do
                                         time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                         # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
+                                        model_name=${model//\//_}
                                         mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                     done
                                 else
