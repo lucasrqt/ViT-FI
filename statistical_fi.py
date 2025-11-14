@@ -184,6 +184,9 @@ class MicroopHook:
         total_ratio = nb_total_faults / fault_model["#total"].item()
         num_elements = int(total_ratio * faulty_output.numel())
 
+        # min_float, max_float = 1e-8, 1e2
+        min_float, max_float = torch.finfo(torch.float32).min, torch.finfo(torch.float32).max
+
         ### V3 with random error sampling and random positions
         if self.injection_type == InjectionType.RANDOM:
             raise NotImplementedError(
@@ -325,7 +328,8 @@ class MicroopHook:
             # valid_rel = rel_err[finite_mask]
 
             # faulty_output[valid_idx] *= 1 + valid_rel
-            faulty_output[err_indices] = faulty_output[err_indices] + (faulty_output[err_indices] * rel_err)
+            # faulty_output[err_indices] = faulty_output[err_indices] + (faulty_output[err_indices] * rel_err)
+            faulty_output[err_indices] *= 1 + rel_err
 
             # faulty_output[nan_indices] = np.nan
             # faulty_output[neginf_indices] = np.NINF
@@ -371,9 +375,11 @@ class MicroopHook:
                 # Relative errors per column
                 if not hasattr(self, "_row_fault_values") or self._row_fault_values is None:
                     self._row_fault_values = torch.empty(col_len, dtype=torch.float, device=faulty_output.device)
-                    self._row_fault_values.uniform_(1e-8, 1e2)
+                    tmp = torch.empty_like(self._row_fault_values, dtype=torch.float64)
+                    tmp.uniform_(float(min_float), float(max_float))
+                    self._row_fault_values.copy_(tmp.to(torch.float32))
 
-                faulty_output[:, row_idx, :] += faulty_output[:, row_idx, :] * self._row_fault_values
+                faulty_output[:, row_idx, :] = self._row_fault_values
 
             else:  # 4D case [B, H, W, C]
                 batch_size, H, W, C = original_shape
@@ -389,9 +395,11 @@ class MicroopHook:
                 # Draw relative errors for each row (H dimension)
                 if not hasattr(self, "_row_fault_values_4d") or self._row_fault_values_4d is None:
                     self._row_fault_values_4d = torch.empty(H, dtype=torch.float, device=faulty_output.device)
-                    self._row_fault_values_4d.uniform_(1e-8, 1e2)
+                    tmp = torch.empty_like(self._row_fault_values_4d, dtype=torch.float64)
+                    tmp.uniform_(float(min_float), float(max_float))
+                    self._row_fault_values_4d.copy_(tmp.to(torch.float32))
 
-                faulty_output[:, :, w_idx, c_idx] += faulty_output[:, :, w_idx, c_idx] * self._row_fault_values_4d
+                faulty_output[:, :, w_idx, c_idx] = self._row_fault_values_4d
 
         # -----------------------------------------------------------
 
@@ -418,9 +426,11 @@ class MicroopHook:
                 # Relative errors per row
                 if not hasattr(self, "_col_fault_values") or self._col_fault_values is None:
                     self._col_fault_values = torch.empty(row_len, dtype=torch.float, device=faulty_output.device)
-                    self._col_fault_values.uniform_(1e-8, 1e2)
+                    tmp = torch.empty_like(self._col_fault_values, dtype=torch.float64)
+                    tmp.uniform_(float(min_float), float(max_float))
+                    self._col_fault_values.copy_(tmp.to(torch.float32))
 
-                faulty_output[:, :, col_idx] += faulty_output[:, :, col_idx] * self._col_fault_values
+                faulty_output[:, :, col_idx] = self._col_fault_values
 
             else:  # 4D case [B, H, W, C]
                 batch_size, H, W, C = module_output_shape
@@ -436,9 +446,11 @@ class MicroopHook:
                 # Draw relative errors for each column (W dimension)
                 if not hasattr(self, "_col_fault_values_4d") or self._col_fault_values_4d is None:
                     self._col_fault_values_4d = torch.empty(W, dtype=torch.float, device=faulty_output.device)
-                    self._col_fault_values_4d.uniform_(1e-8, 1e2)
+                    tmp = torch.empty_like(self._col_fault_values_4d, dtype=torch.float64)
+                    tmp.uniform_(float(min_float), float(max_float))
+                    self._col_fault_values_4d.copy_(tmp.to(torch.float32))
 
-                faulty_output[:, h_idx, :, c_idx] += faulty_output[:, h_idx, :, c_idx] * self._col_fault_values_4d
+                faulty_output[:, h_idx, :, c_idx] = self._col_fault_values_4d
 
 
         elif self.injection_type == InjectionType.SINGLE:
