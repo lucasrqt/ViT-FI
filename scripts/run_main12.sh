@@ -28,8 +28,8 @@ swin_microops=(
 
 vit_microops=(
     # "Block"
-    "Attention"
-    # "Mlp"
+    # "Attention"
+    "Mlp"
 )
 
 gpt2_microops=(
@@ -39,8 +39,8 @@ gpt2_microops=(
 )
 
 bart_microops=(
-    "BartEncoderLayer"
-    # "BartDecoderLayer"
+    # "BartEncoderLayer"
+    "BartDecoderLayer"
     # "BartSdpaAttention"
     # "BartMlp"
 )
