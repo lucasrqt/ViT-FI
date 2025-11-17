@@ -4,10 +4,10 @@ script="main.py"
 
 # Run the tests
 models=(
-    "vit_base_patch16_224"
+    # "vit_base_patch16_224"
     "swin_base_patch4_window7_224"
-    "gpt2"
-    "facebook/bart-large-mnli"
+    # "gpt2"
+    # "facebook/bart-large-mnli"
 )
 
 precision=(
@@ -22,8 +22,8 @@ float_thresholds=(
 
 swin_microops=(
     "SwinTransformerBlock"
-    "Mlp"
-    "WindowAttention"
+    # "Mlp"
+    # "WindowAttention"
 )
 
 vit_microops=(
@@ -41,16 +41,16 @@ gpt2_microops=(
 bart_microops=(
     "BartEncoderLayer"
     "BartDecoderLayer"
-    "BartSdpaAttention"
-    "BartMlp"
+    # "BartSdpaAttention"
+    # "BartMlp"
 )
 
 injection_types=(
     # "RANDOM"
-    "FIXED"
+    # "FIXED"
     # "SINGLE"
+    "COL"
     # "ROW"
-    # "COL"
     # "SINGLE_RANDOM"
 )
 
@@ -76,7 +76,7 @@ batchsize=32
 seeds=(
     # 0
     # 493
-    666
+    # 666
     31417
     # 182036
     # 29052001
