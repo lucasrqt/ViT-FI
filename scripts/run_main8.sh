@@ -4,10 +4,10 @@ script="main.py"
 
 # Run the tests
 models=(
-    "vit_base_patch16_224"
-    "swin_base_patch4_window7_224"
-    "gpt2"
+    # "swin_base_patch4_window7_224"
+    # "gpt2"
     "facebook/bart-large-mnli"
+    "vit_base_patch16_224"
 )
 
 precision=(
@@ -27,9 +27,9 @@ swin_microops=(
 )
 
 vit_microops=(
-    "Block"
+    # "Block"
     "Attention"
-    "Mlp"
+    # "Mlp"
 )
 
 gpt2_microops=(
@@ -39,10 +39,10 @@ gpt2_microops=(
 )
 
 bart_microops=(
-    "BartEncoderLayer"
+    # "BartEncoderLayer"
     "BartDecoderLayer"
-    "BartSdpaAttention"
-    "BartMlp"
+    # "BartSdpaAttention"
+    # "BartMlp"
 )
 
 injection_types=(
@@ -74,11 +74,11 @@ device="cuda:0"
 batchsize=32
 # seed=0
 seeds=(
-    # 0
-    # 493
+    0
+    493
     666
-    # 31417
-    # 182036
+    31417
+    182036
     # 29052001
     # 35014520
     # 4294967295
@@ -200,9 +200,9 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
 # gpt2_total_layers=12
 
 range_restriction_modes=(
-    # "NONE"
+    "NONE"
     # "CLAMP"
-    "TO_ZERO"
+    # "TO_ZERO"
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
