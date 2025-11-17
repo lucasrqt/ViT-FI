@@ -4,9 +4,9 @@ script="main.py"
 
 # Run the tests
 models=(
-    "vit_base_patch16_224"
-    "swin_base_patch4_window7_224"
-    "gpt2"
+    # "vit_base_patch16_224"
+    # "swin_base_patch4_window7_224"
+    # "gpt2"
     "facebook/bart-large-mnli"
 )
 
@@ -41,16 +41,16 @@ gpt2_microops=(
 bart_microops=(
     "BartEncoderLayer"
     "BartDecoderLayer"
-    "BartSdpaAttention"
-    "BartMlp"
+    # "BartSdpaAttention"
+    # "BartMlp"
 )
 
 injection_types=(
     # "RANDOM"
     "FIXED"
     # "SINGLE"
-    # "ROW"
-    # "COL"
+    "COL"
+    "ROW"
     # "SINGLE_RANDOM"
 )
 
@@ -76,14 +76,14 @@ batchsize=32
 seeds=(
     0
     493
-    # 666
-    # 31417
-    # 182036
-    # 29052001
-    # 35014520
-    # 4294967295
-    # 2796017452
-    # 1084398730
+    666
+    31417
+    182036
+    29052001
+    35014520
+    4294967295
+    2796017452
+    1084398730
     #---
     # 3208799631
     # 2357136044
@@ -185,9 +185,9 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
     # "MIDDLE"
     # "MIDDLE_HALF"
     # "BEFORE_LAST"
-    "0" # first layer
+    # "0" # first layer
     "5" # middle layer
-    "11" # last layer
+    # "11" # last layer
 )
 
 # bart_attentions=34
