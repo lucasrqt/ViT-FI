@@ -213,7 +213,7 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
     # "BEFORE_LAST"
     # "0" # first layer
     "5" # middle layer
-    # "11" # last layer
+    "11" # last layer
 )
 
 # bart_attentions=34
@@ -257,16 +257,18 @@ for model in "${models[@]}"; do
         for threshold in "${float_thresholds[@]}"; do
             if [[ $model == "swin"* ]]; then
                 injection_types=("${swin_it[@]}")
-                seeds=("${swin_seeds[@]}")
             elif [[ $model == "facebook/bart-large-mnli" ]]; then
                 injection_types=("${bart_it[@]}")
-                seeds=("${default_seeds[@]}")
             else
                 injection_types=("${default_injection_types[@]}")
-                seeds=("${default_seeds[@]}")
             fi
-            for seed in "${seeds[@]}"; do
-                for it in "${injection_types[@]}"; do
+            for it in "${injection_types[@]}"; do
+                if [[ $model == "swin"* ]]; then
+                    seeds=("${swin_seeds[@]}")
+                else
+                    seeds=("${default_seeds[@]}")
+                fi
+                for seed in "${seeds[@]}"; do
                     for rrm in "${range_restriction_modes[@]}"; do
                         options+=" --range-restriction-mode $rrm"
                         for bitflip in "${bitflip_positions[@]}"; do
