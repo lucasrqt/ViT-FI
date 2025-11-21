@@ -5,7 +5,7 @@ script="main.py"
 # Run the tests
 models=(
     # "vit_base_patch16_224"
-    # "swin_base_patch4_window7_224"
+    "swin_base_patch4_window7_224"
     # "gpt2"
     "facebook/bart-large-mnli"
 )
@@ -21,9 +21,9 @@ float_thresholds=(
 )
 
 swin_microops=(
-    "SwinTransformerBlock"
+    # "SwinTransformerBlock"
     "Mlp"
-    "WindowAttention"
+    # "WindowAttention"
 )
 
 vit_microops=(
@@ -40,18 +40,44 @@ gpt2_microops=(
 
 bart_microops=(
     "BartEncoderLayer"
-    "BartDecoderLayer"
+    # "BartDecoderLayer"
     # "BartSdpaAttention"
     # "BartMlp"
 )
 
-injection_types=(
+default_injection_types=(
+    # "RANDOM"
+    # "FIXED"
+    # "SINGLE"
+    "COL"
+    "ROW"
+    # "SINGLE_RANDOM"
+)
+
+swin_it=(
+    # "RANDOM"
+    # "FIXED"
+    # "SINGLE"
+    "COL"
+    "ROW"
+    # "SINGLE_RANDOM"
+)
+
+bart_it=(
     # "RANDOM"
     "FIXED"
     # "SINGLE"
     "COL"
     "ROW"
     # "SINGLE_RANDOM"
+)
+
+swin_seeds=(
+    0
+    493
+    666
+    31417
+    182036
 )
 
 bitflip_positions=(
@@ -73,7 +99,7 @@ device="cuda:0"
 # dataset="glue_mnli"
 batchsize=32
 # seed=0
-seeds=(
+default_seeds=(
     0
     493
     666
@@ -200,9 +226,9 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
 # gpt2_total_layers=12
 
 range_restriction_modes=(
-    # "NONE"
+    "NONE"
     # "CLAMP"
-    "TO_ZERO"
+    # "TO_ZERO"
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
@@ -229,6 +255,16 @@ for model in "${models[@]}"; do
     fi
     for prec in "${precision[@]}"; do
         for threshold in "${float_thresholds[@]}"; do
+            if [[ $model == "swin"* ]]; then
+                injection_types=("${swin_it[@]}")
+                seeds=("${swin_seeds[@]}")
+            elif [[ $model == "facebook/bart-large-mnli" ]]; then
+                injection_types=("${bart_it[@]}")
+                seeds=("${default_seeds[@]}")
+            else
+                injection_types=("${default_injection_types[@]}")
+                seeds=("${default_seeds[@]}")
+            fi
             for seed in "${seeds[@]}"; do
                 for it in "${injection_types[@]}"; do
                     for rrm in "${range_restriction_modes[@]}"; do
