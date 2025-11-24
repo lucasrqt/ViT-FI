@@ -4,9 +4,9 @@ script="main.py"
 
 # Run the tests
 models=(
-    "vit_base_patch16_224"
+    # "vit_base_patch16_224"
     # "swin_base_patch4_window7_224"
-    # "gpt2"
+    "gpt2"
     # "facebook/bart-large-mnli"
 )
 
@@ -21,15 +21,15 @@ float_thresholds=(
 )
 
 swin_microops=(
-    # "SwinTransformerBlock"
+    "SwinTransformerBlock"
     "Mlp"
-    # "WindowAttention"
+    "WindowAttention"
 )
 
 vit_microops=(
     "Block"
-    # "Attention"
-    # "Mlp"
+    "Attention"
+    "Mlp"
 )
 
 gpt2_microops=(
@@ -41,18 +41,17 @@ gpt2_microops=(
 bart_microops=(
     "BartEncoderLayer"
     "BartDecoderLayer"
-    # "BartSdpaAttention"
-    # "BartMlp"
+    "BartSdpaAttention"
+    "BartMlp"
 )
 
 injection_types=(
     # "RANDOM"
-    # "FIXED"
+    "FIXED"
     # "SINGLE"
-    # "COL"
-    # "ROW"
+    "ROW"
+    "COL"
     # "SINGLE_RANDOM"
-    "MULTIPLE_RANDOM"
 )
 
 bitflip_positions=(
@@ -80,11 +79,11 @@ seeds=(
     666
     31417
     182036
-    # 29052001
-    # 35014520
-    # 4294967295
-    # 2796017452
-    # 1084398730
+    29052001
+    35014520
+    4294967295
+    2796017452
+    1084398730
     #---
     # 3208799631
     # 2357136044
@@ -186,8 +185,8 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
     # "MIDDLE"
     # "MIDDLE_HALF"
     # "BEFORE_LAST"
-    "5" # middle layer
     "0" # first layer
+    "5" # middle layer
     "11" # last layer
 )
 
@@ -201,9 +200,9 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
 # gpt2_total_layers=12
 
 range_restriction_modes=(
-    # "NONE"
+    "NONE"
     # "CLAMP"
-    "TO_ZERO"
+    # "TO_ZERO"
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
@@ -221,16 +220,16 @@ mkdir -p data/"$current_time"_campaign
 ## if seed_specific is not None:
 ##     base_name += f"-seedspecif_{seed_specific}"
 ## return f"{base_name}.csv"
-
-for model in "${models[@]}"; do
-    if [[ $model == "gpt2" || $model == "facebook/bart-large-mnli" ]]; then
-        dataset="glue_mnli"
-    else
-        dataset="imagenet"
-    fi
-    for prec in "${precision[@]}"; do
-        for threshold in "${float_thresholds[@]}"; do
-            for seed in "${seeds[@]}"; do
+for seed in "${seeds[@]}"; do
+    for model in "${models[@]}"; do
+        if [[ $model == "gpt2" || $model == "facebook/bart-large-mnli" ]]; then
+            dataset="glue_mnli"
+        else
+            dataset="imagenet"
+        fi
+        for prec in "${precision[@]}"; do
+            for threshold in "${float_thresholds[@]}"; do
+                
                 for it in "${injection_types[@]}"; do
                     for rrm in "${range_restriction_modes[@]}"; do
                         options+=" --range-restriction-mode $rrm"
@@ -243,8 +242,8 @@ for model in "${models[@]}"; do
                             if [[ $model == "swin"* ]]; then
                                 for microop in "${swin_microops[@]}"; do
                                     targets=(
-                                        "11" # middle layer
                                         "0" # first layer
+                                        "11" # middle layer
                                         "23" # last layer
                                     )
                                     for target in "${targets[@]}"; do
@@ -267,14 +266,14 @@ for model in "${models[@]}"; do
                                         targets=$default_targets
                                     elif [[ $microop == "BartSdpaAttention" ]]; then
                                         targets=(
-                                            "17" # middle layer
                                             "0" # first layer
+                                            "17" # middle layer
                                             "33" # last layer
                                         )
                                     elif [[ $microop == "BartMlp" ]]; then
                                         targets=(
-                                            "11" # middle layer
                                             "0" # first layer
+                                            "11" # middle layer
                                             "23" # last layer
                                         )
                                     fi
@@ -296,6 +295,7 @@ for model in "${models[@]}"; do
                             fi
                         done
                     done
+                done
                 done
             done
         done

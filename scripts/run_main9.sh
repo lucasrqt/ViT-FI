@@ -27,8 +27,8 @@ swin_microops=(
 )
 
 vit_microops=(
-    # "Block"
-    "Attention"
+    "Block"
+    # "Attention"
     # "Mlp"
 )
 
@@ -80,11 +80,11 @@ seeds=(
     666
     31417
     182036
-    29052001
-    35014520
-    4294967295
-    2796017452
-    1084398730
+    # 29052001
+    # 35014520
+    # 4294967295
+    # 2796017452
+    # 1084398730
     #---
     # 3208799631
     # 2357136044
@@ -186,8 +186,8 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
     # "MIDDLE"
     # "MIDDLE_HALF"
     # "BEFORE_LAST"
-    "0" # first layer
     "5" # middle layer
+    "0" # first layer
     "11" # last layer
 )
 
@@ -243,8 +243,8 @@ for model in "${models[@]}"; do
                             if [[ $model == "swin"* ]]; then
                                 for microop in "${swin_microops[@]}"; do
                                     targets=(
-                                        "0" # first layer
                                         "11" # middle layer
+                                        "0" # first layer
                                         "23" # last layer
                                     )
                                     for target in "${targets[@]}"; do
@@ -267,14 +267,14 @@ for model in "${models[@]}"; do
                                         targets=$default_targets
                                     elif [[ $microop == "BartSdpaAttention" ]]; then
                                         targets=(
-                                            "0" # first layer
                                             "17" # middle layer
+                                            "0" # first layer
                                             "33" # last layer
                                         )
                                     elif [[ $microop == "BartMlp" ]]; then
                                         targets=(
-                                            "0" # first layer
                                             "11" # middle layer
+                                            "0" # first layer
                                             "23" # last layer
                                         )
                                     fi

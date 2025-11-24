@@ -4,9 +4,9 @@ script="main.py"
 
 # Run the tests
 models=(
-    # "vit_base_patch16_224"
-    # "swin_base_patch4_window7_224"
-    # "gpt2"
+    "vit_base_patch16_224"
+    "swin_base_patch4_window7_224"
+    "gpt2"
     "facebook/bart-large-mnli"
 )
 
@@ -179,19 +179,25 @@ seeds=(
     # 2863741219
 )
 
-targets=(
+default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
     # "FIRST"
     # "LAST"
     # "MIDDLE"
     # "MIDDLE_HALF"
     # "BEFORE_LAST"
-    "0"
-    # "1"
-    # "5"
-    # "11"
-    # "9"
-    # "23"
+    "0" # first layer
+    "5" # middle layer
+    "11" # last layer
 )
+
+# bart_attentions=34
+# bart_encoders=12
+# bart_decoders=12
+# bart_mlps=24
+
+# swin_total_layers=24
+# vit_total_layers=12
+# gpt2_total_layers=12
 
 range_restriction_modes=(
     # "NONE"
@@ -224,43 +230,69 @@ for model in "${models[@]}"; do
     for prec in "${precision[@]}"; do
         for threshold in "${float_thresholds[@]}"; do
             for seed in "${seeds[@]}"; do
-                for target in "${targets[@]}"; do
-                    for it in "${injection_types[@]}"; do
-                        for rrm in "${range_restriction_modes[@]}"; do
-                            options+=" --range-restriction-mode $rrm"
-                            for bitflip in "${bitflip_positions[@]}"; do
-                                it_for_filename=$it
-                                if [[ $it == "SINGLE" ]]; then
-                                    options+=" --bitflip-position $bitflip"
-                                    it_for_filename+="--bit$bitflip"
-                                fi
-                                if [[ $model == "swin"* ]]; then
-                                    for microop in "${swin_microops[@]}"; do
+                for it in "${injection_types[@]}"; do
+                    for rrm in "${range_restriction_modes[@]}"; do
+                        options+=" --range-restriction-mode $rrm"
+                        for bitflip in "${bitflip_positions[@]}"; do
+                            it_for_filename=$it
+                            if [[ $it == "SINGLE" ]]; then
+                                options+=" --bitflip-position $bitflip"
+                                it_for_filename+="--bit$bitflip"
+                            fi
+                            if [[ $model == "swin"* ]]; then
+                                for microop in "${swin_microops[@]}"; do
+                                    targets=(
+                                        "0" # first layer
+                                        "11" # middle layer
+                                        "23" # last layer
+                                    )
+                                    for target in "${targets[@]}"; do
                                         time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                         # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
                                         mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                     done
-                                elif [[ $model == "gpt2" ]]; then
-                                    for microop in "${gpt2_microops[@]}"; do
+                                done
+                            elif [[ $model == "gpt2" ]]; then
+                                for microop in "${gpt2_microops[@]}"; do
+                                    for target in "${default_targets[@]}"; do
                                         time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                         # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
                                         mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                     done
-                                elif [[ $model == "facebook/bart-large-mnli" ]]; then
-                                    for microop in "${bart_microops[@]}"; do
+                                done
+                            elif [[ $model == "facebook/bart-large-mnli" ]]; then
+                                for microop in "${bart_microops[@]}"; do
+                                    if [[ $microop == "BartEncoderLayer" || $microop == "BartDecoderLayer" ]]; then
+                                        targets=$default_targets
+                                    elif [[ $microop == "BartSdpaAttention" ]]; then
+                                        targets=(
+                                            "0" # first layer
+                                            "17" # middle layer
+                                            "33" # last layer
+                                        )
+                                    elif [[ $microop == "BartMlp" ]]; then
+                                        targets=(
+                                            "0" # first layer
+                                            "11" # middle layer
+                                            "23" # last layer
+                                        )
+                                    fi
+                                    for target in "${targets[@]}"; do
                                         time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                         # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
                                         model_name=${model//\//_}
-                                        mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
+                                        mv data/"$model_name"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                     done
-                                else
-                                    for microop in "${vit_microops[@]}"; do
+                                done
+                            else
+                                for microop in "${vit_microops[@]}"; do
+                                    for target in "${default_targets[@]}"; do
                                         time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
                                         # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
                                         mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                     done
-                                fi
-                            done
+                                done
+                            fi
                         done
                     done
                 done
