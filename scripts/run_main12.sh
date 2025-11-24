@@ -4,10 +4,10 @@ script="main.py"
 
 # Run the tests
 models=(
-    # "swin_base_patch4_window7_224"
+    # "vit_base_patch16_224"
+    "swin_base_patch4_window7_224"
     # "gpt2"
-    "facebook/bart-large-mnli"
-    "vit_base_patch16_224"
+    # "facebook/bart-large-mnli"
 )
 
 precision=(
@@ -22,14 +22,14 @@ float_thresholds=(
 
 swin_microops=(
     "SwinTransformerBlock"
-    "Mlp"
-    "WindowAttention"
+    # "Mlp"
+    # "WindowAttention"
 )
 
 vit_microops=(
-    # "Block"
+    "Block"
     # "Attention"
-    "Mlp"
+    # "Mlp"
 )
 
 gpt2_microops=(
@@ -39,7 +39,7 @@ gpt2_microops=(
 )
 
 bart_microops=(
-    # "BartEncoderLayer"
+    "BartEncoderLayer"
     "BartDecoderLayer"
     # "BartSdpaAttention"
     # "BartMlp"
@@ -47,11 +47,12 @@ bart_microops=(
 
 injection_types=(
     # "RANDOM"
-    "FIXED"
+    # "FIXED"
     # "SINGLE"
-    # "ROW"
     # "COL"
+    # "ROW"
     # "SINGLE_RANDOM"
+    "MULTIPLE_RANDOM"
 )
 
 bitflip_positions=(
@@ -77,13 +78,13 @@ seeds=(
     0
     493
     666
-    31417
-    182036
-    29052001
-    35014520
-    4294967295
-    2796017452
-    1084398730
+    # 31417
+    # 182036
+    # 29052001
+    # 35014520
+    # 4294967295
+    # 2796017452
+    # 1084398730
     #---
     # 3208799631
     # 2357136044
@@ -185,8 +186,8 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
     # "MIDDLE"
     # "MIDDLE_HALF"
     # "BEFORE_LAST"
-    "0" # first layer
     "5" # middle layer
+    "0" # first layer
     "11" # last layer
 )
 
@@ -200,9 +201,9 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
 # gpt2_total_layers=12
 
 range_restriction_modes=(
-    "NONE"
+    # "NONE"
     # "CLAMP"
-    # "TO_ZERO"
+    "TO_ZERO"
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
@@ -242,8 +243,8 @@ for model in "${models[@]}"; do
                             if [[ $model == "swin"* ]]; then
                                 for microop in "${swin_microops[@]}"; do
                                     targets=(
-                                        "0" # first layer
                                         "11" # middle layer
+                                        "0" # first layer
                                         "23" # last layer
                                     )
                                     for target in "${targets[@]}"; do
@@ -266,14 +267,14 @@ for model in "${models[@]}"; do
                                         targets=$default_targets
                                     elif [[ $microop == "BartSdpaAttention" ]]; then
                                         targets=(
-                                            "0" # first layer
                                             "17" # middle layer
+                                            "0" # first layer
                                             "33" # last layer
                                         )
                                     elif [[ $microop == "BartMlp" ]]; then
                                         targets=(
-                                            "0" # first layer
                                             "11" # middle layer
+                                            "0" # first layer
                                             "23" # last layer
                                         )
                                     fi

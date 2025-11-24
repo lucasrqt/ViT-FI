@@ -549,32 +549,72 @@ class MicroopHook:
 
             faulty_output[: , row_idx, col_idx] = self._faulty_value
         elif self.injection_type == InjectionType.MULTIPLE_RANDOM:
-            # Input shape: [B, H, W]
+            # MULTIPLE RANDOM FAULTS
             faulty_output = faulty_output.view(module_output_shape).to(module_output_device)
-            B, H, W = faulty_output.shape
-            K = configs.MULTIPLE_ELEM_CORRUPTED
+            dim = faulty_output.ndim
+            K = configs.MULTIPLE_ELEM_CORRUPTED   # e.g. 32
 
-            # 1. Pre-generate faulty values once (shape K)
-            if not hasattr(self, "_faulty_values") or self._faulty_values is None:
-                tmp = torch.empty(K, dtype=torch.float64, device=faulty_output.device)
-                tmp.uniform_(float(min_float), float(max_float))
-                self._faulty_values = tmp.to(torch.float32)
+            if dim == 3:
+                # --------------------------------------------------------
+                #  3D CASE:  [B, H, W]
+                #  → Select K positions ONCE (shared across batch)
+                # --------------------------------------------------------
+                B, H, W = faulty_output.shape
 
-            # 2. Pre-generate corrupt positions (shape [K, 2])
-            if not hasattr(self, "_corrupt_positions") or self._corrupt_positions is None:
-                # Random rows and columns (each of size K)
-                rows = torch.randint(0, H, (K,), device=faulty_output.device)
-                cols = torch.randint(0, W, (K,), device=faulty_output.device)
-                self._corrupt_positions = torch.stack([rows, cols], dim=1)
+                # faulty values
+                if not hasattr(self, "_faulty_values_3d") or self._faulty_values_3d is None:
+                    tmp = torch.empty(K, dtype=torch.float64, device=faulty_output.device)
+                    tmp.uniform_(float(min_float), float(max_float))
+                    self._faulty_values_3d = tmp.to(torch.float32)
 
-            # Extract row/col and faulty values
-            rows = self._corrupt_positions[:, 0]   # (K,)
-            cols = self._corrupt_positions[:, 1]   # (K,)
-            vals = self._faulty_values             # (K,)
+                # positions (shared)
+                if not hasattr(self, "_corrupt_positions_3d") or self._corrupt_positions_3d is None:
+                    rows = torch.randint(0, H, (K,), device=faulty_output.device)
+                    cols = torch.randint(0, W, (K,), device=faulty_output.device)
+                    self._corrupt_positions_3d = torch.stack([rows, cols], dim=1)
 
-            # 3. Apply faults in a **single vectorized operation**
-            # Broadcast batch dimension
-            faulty_output[:, rows, cols] = vals.unsqueeze(0)
+                rows = self._corrupt_positions_3d[:, 0]   # (K,)
+                cols = self._corrupt_positions_3d[:, 1]   # (K,)
+                vals = self._faulty_values_3d             # (K,)
+
+                # vectorized write
+                faulty_output[:, rows, cols] = vals.unsqueeze(0)
+
+
+
+            elif dim == 4:
+                # --------------------------------------------------------
+                #  4D CASE:  [B, H, W, C] (Swin BHWC)
+                #  → Select K positions PER SAMPLE (NOT shared!)
+                # --------------------------------------------------------
+                B, H, W, C = faulty_output.shape
+
+                # faulty values (per sample)
+                if not hasattr(self, "_faulty_values_4d") or self._faulty_values_4d is None:
+                    # (B, K) values — each sample gets its own list
+                    tmp = torch.empty((B, K), dtype=torch.float64, device=faulty_output.device)
+                    tmp.uniform_(float(min_float), float(max_float))
+                    self._faulty_values_4d = tmp.to(torch.float32)
+
+                # positions (per sample)
+                if not hasattr(self, "_corrupt_positions_4d") or self._corrupt_positions_4d is None:
+                    # rows, cols, channels per sample
+                    rows = torch.randint(0, H, (B, K), device=faulty_output.device)  # (B, K)
+                    cols = torch.randint(0, W, (B, K), device=faulty_output.device)  # (B, K)
+                    chans = torch.randint(0, C, (B, K), device=faulty_output.device) # (B, K)
+                    self._corrupt_positions_4d = (rows, cols, chans)
+
+                rows, cols, chans = self._corrupt_positions_4d   # each is (B, K)
+                vals = self._faulty_values_4d                    # (B, K)
+
+                # --------------------------------------------------------
+                # Vectorized corruption WITHOUT LOOPS
+                # --------------------------------------------------------
+                batch_idx = torch.arange(B, device=faulty_output.device).unsqueeze(1)  # (B,1) -> expands to (B,K)
+                batch_idx = batch_idx.expand(-1, K)  # (B,K)
+
+                # write: faulty_output[b, row[b,j], col[b,j], chan[b,j]] = vals[b,j]
+                faulty_output[batch_idx, rows, cols, chans] = vals
 
 
         # then load model layer bounds to apply range restriction
