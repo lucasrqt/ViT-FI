@@ -548,6 +548,34 @@ class MicroopHook:
             col_idx = self._bullet_col
 
             faulty_output[: , row_idx, col_idx] = self._faulty_value
+        elif self.injection_type == InjectionType.MULTIPLE_RANDOM:
+            # Input shape: [B, H, W]
+            faulty_output = faulty_output.view(module_output_shape).to(module_output_device)
+            B, H, W = faulty_output.shape
+            K = configs.MULTIPLE_ELEM_CORRUPTED
+
+            # 1. Pre-generate faulty values once (shape K)
+            if not hasattr(self, "_faulty_values") or self._faulty_values is None:
+                tmp = torch.empty(K, dtype=torch.float64, device=faulty_output.device)
+                tmp.uniform_(float(min_float), float(max_float))
+                self._faulty_values = tmp.to(torch.float32)
+
+            # 2. Pre-generate corrupt positions (shape [K, 2])
+            if not hasattr(self, "_corrupt_positions") or self._corrupt_positions is None:
+                # Random rows and columns (each of size K)
+                rows = torch.randint(0, H, (K,), device=faulty_output.device)
+                cols = torch.randint(0, W, (K,), device=faulty_output.device)
+                self._corrupt_positions = torch.stack([rows, cols], dim=1)
+
+            # Extract row/col and faulty values
+            rows = self._corrupt_positions[:, 0]   # (K,)
+            cols = self._corrupt_positions[:, 1]   # (K,)
+            vals = self._faulty_values             # (K,)
+
+            # 3. Apply faults in a **single vectorized operation**
+            # Broadcast batch dimension
+            faulty_output[:, rows, cols] = vals.unsqueeze(0)
+
 
         # then load model layer bounds to apply range restriction
         # load from npz file, apply 10% tolerance on min/max
