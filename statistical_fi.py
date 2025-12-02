@@ -4,6 +4,7 @@ import os
 import pandas as pd
 from utils.compare_utils import get_top_k_labels, get_top_k_probs
 import enum
+import numpy as np
 
 _LAYER_TO_HOOK = [1e-30]
 _HOOKABLE_LAYERS = []
@@ -24,10 +25,13 @@ class InjectionType(enum.Enum):
 
 class LayerChoice(enum.Enum):
     FIRST = 0
-    MIDDLE = 1
-    LAST = 2
-    SMALLEST = 3
-    LARGEST = 4
+    FIRST_HALF = 1
+    MIDDLE = 2
+    MIDDLE_HALF = 3
+    BEFORE_LAST = 4
+    LAST = 5
+    SMALLEST = 6
+    LARGEST = 7
 
     def __str__(self):
         return str(self.name)
@@ -111,6 +115,9 @@ class MicroopHook:
 
     def set_save_critical_logits(self, save_critical_logits) -> None:
         self.save_critical_logits = save_critical_logits
+    
+    def get_relative_errors(self):
+        return self._relative_errors if hasattr(self, "_relative_errors") else None
 
     def hook_fn_to_inject_fault(self, module, module_input, module_output) -> None:
         """
@@ -124,137 +131,158 @@ class MicroopHook:
         # Move the output to CPU for computations
         faulty_output = module_output.clone().cpu()
 
-        # gathering the fault model
+        # Gathering the fault model
         fault_model, altered_floats, float_to_nan, nb_neginf, nb_posinf = (
             self.__process_fault_model()
         )
         nb_total_faults = altered_floats + float_to_nan + nb_neginf + nb_posinf
 
         altered_floats_ratio = altered_floats / fault_model["#total"].item()
-        # float_to_nan_ratio = float_to_nan / fault_model["#total"].item()
-        # nb_neginf_ratio = nb_neginf / fault_model["#total"].item()
-        # nb_posinf_ratio = nb_posinf / fault_model["#total"].item()
+        float_to_nan_ratio = float_to_nan / fault_model["#total"].item()
+        nb_neginf_ratio = nb_neginf / fault_model["#total"].item()
+        nb_posinf_ratio = nb_posinf / fault_model["#total"].item()
         total_ratio = nb_total_faults / fault_model["#total"].item()
         num_elements = int(total_ratio * faulty_output.numel())
 
-        ### V1 with random error sampling and fixed positions
-        # # Select random elements to modify and generate it only once
-        # if not hasattr(self, "_altered_indices") or self._altered_indices is None:
-        #     self._altered_indices = torch.randperm(faulty_output.numel())[:num_elements]
-
-        # num_rel_errors = int(altered_floats_ratio * num_elements)
-        # rel_err_indices = self._altered_indices[:num_rel_errors]
-
-        # # Get random relative errors
-        # if not hasattr(self, "_relative_errors") or self._relative_errors is None:
-        #     nb_bins = fault_model.columns.str.startswith("bin_").sum()
-        #     if not hasattr(self, "_bins") or self._bins is None:
-        #         self._bins = torch.tensor(
-        #             [fault_model[f"bin_{i}"].item() for i in range(nb_bins)]
-        #         )
-        #         counts = torch.tensor(
-        #             [fault_model[f"hist_{i}"].item() for i in range(nb_bins)],
-        #             dtype=torch.float,
-        #         )
-        #         probs = counts / counts.sum()
-        #         self._probs = probs
-
-        # rel_err = self._bins[
-        #     torch.multinomial(self._probs, num_rel_errors, replacement=True)
-        # ]
-
-        ### V2 with fixed error sampling and random positions
-        # # Select random faults to inject
-        # num_rel_errors = int(altered_floats_ratio * num_elements)
-        # if not hasattr(self, "_relative_errors") or self._relative_errors is None:
-        #     nb_bins = fault_model.columns.str.startswith("bin_").sum()
-        #     if not hasattr(self, "_bins") or self._bins is None:
-        #         self._bins = torch.tensor(
-        #             [fault_model[f"bin_{i}"].item() for i in range(nb_bins)]
-        #         )
-        #         counts = torch.tensor(
-        #             [fault_model[f"hist_{i}"].item() for i in range(nb_bins)],
-        #             dtype=torch.float,
-        #         )
-        #         probs = counts / counts.sum()
-        #         self._probs = probs
-
-        #     self._relative_errors = self._bins[
-        #         torch.multinomial(self._probs, num_rel_errors, replacement=True)
-        #     ]
-
-        # rel_err = self._relative_errors
-
-        # rel_err_indices = torch.randperm(faulty_output.numel())[:num_rel_errors]
-
         ### V3 with random error sampling and random positions
         if self.injection_type == InjectionType.RANDOM:
-            num_rel_errors = int(altered_floats_ratio * num_elements)
+            raise NotImplementedError(
+                "Random injection type is not implemented yet. "
+                "Please use the FIXED injection type."
+            )
+            # num_rel_errors = int(altered_floats_ratio * num_elements)
+            # num_nan = int(float_to_nan_ratio * num_elements)
+            # num_neginf = int(nb_neginf_ratio * num_elements)
+            # num_posinf = int(nb_posinf_ratio * num_elements)
 
-            # Get random relative errors
-            if not hasattr(self, "_relative_errors") or self._relative_errors is None:
-                nb_bins = fault_model.columns.str.startswith("bin_").sum()
-                if not hasattr(self, "_bins") or self._bins is None:
-                    self._bins = torch.tensor(
-                        [fault_model[f"bin_{i}"].item() for i in range(nb_bins)]
-                    )
-                    counts = torch.tensor(
-                        [fault_model[f"hist_{i}"].item() for i in range(nb_bins)],
-                        dtype=torch.float,
-                    )
-                    probs = counts / counts.sum()
-                    self._probs = probs
+            # # --- Relative errors ---
+            # if not hasattr(self, "_relative_errors") or self._relative_errors is None:
+            #     nb_bins = fault_model.columns.str.startswith("bin_").sum()
+            #     if not hasattr(self, "_bins") or self._bins is None:
+            #         self._bins = torch.tensor(
+            #             [fault_model[f"bin_{i}"].item() for i in range(nb_bins)]
+            #         )
+            #         counts = torch.tensor(
+            #             [fault_model[f"hist_{i}"].item() for i in range(nb_bins)],
+            #             dtype=torch.float,
+            #         )
+            #         self._probs = counts / counts.sum()
 
-            rel_err = self._bins[
-                torch.multinomial(self._probs, num_rel_errors, replacement=True)
-            ]
-            rel_err_indices = torch.randperm(faulty_output.numel())[:num_rel_errors]
+            # rel_err = self._bins[
+            #     torch.multinomial(self._probs, num_rel_errors, replacement=True)
+            # ]
+            # rel_err_indices = torch.randperm(faulty_output.numel())[:num_rel_errors]
+            # used_indices = set(rel_err_indices.tolist())
+
+            # # Apply relative errors
+            # faulty_output[rel_err_indices] *= 1 + rel_err
+
+            # # --- NaNs ---
+            # remaining_indices = list(set(range(faulty_output.numel())) - used_indices)
+            # nan_indices = torch.tensor(remaining_indices)[
+            #     torch.randperm(len(remaining_indices))[:num_nan]
+            # ]
+            # used_indices.update(nan_indices.tolist())
+            # faulty_output[nan_indices] = float('nan')
+
+            # # --- -inf ---
+            # remaining_indices = list(set(range(faulty_output.numel())) - used_indices)
+            # neginf_indices = torch.tensor(remaining_indices)[
+            #     torch.randperm(len(remaining_indices))[:num_neginf]
+            # ]
+            # used_indices.update(neginf_indices.tolist())
+            # faulty_output[neginf_indices] = float('-inf')
+
+            # # --- +inf ---
+            # remaining_indices = list(set(range(faulty_output.numel())) - used_indices)
+            # posinf_indices = torch.tensor(remaining_indices)[
+            #     torch.randperm(len(remaining_indices))[:num_posinf]
+            # ]
+            # used_indices.update(posinf_indices.tolist())
+            # faulty_output[posinf_indices] = float('inf')
 
         elif self.injection_type == InjectionType.FIXED:
             num_rel_errors = int(altered_floats_ratio * num_elements)
+            num_nan = int(float_to_nan_ratio * num_elements)
+            num_neginf = int(nb_neginf_ratio * num_elements)
+            num_posinf = int(nb_posinf_ratio * num_elements)
+            sum_num_err = num_rel_errors + num_nan + num_neginf + num_posinf
 
             if not hasattr(self, "_altered_indices") or self._altered_indices is None:
-                self._altered_indices = torch.randperm(faulty_output.numel())[
-                    :num_rel_errors
-                ]
+                self._altered_indices = torch.randperm(faulty_output.numel())[:sum_num_err]
                 self._last_batch_msk = self._altered_indices < (
                     faulty_output.numel() // self.batch_size * self.last_batch_size
                 )
                 self._split1_indices = self._altered_indices[self._last_batch_msk]
 
-            rel_err_indices = self._altered_indices
+            # rel_err_indices = self._altered_indices[:num_rel_errors]
+            # nan_indices = self._altered_indices[num_rel_errors:num_rel_errors + num_nan]
+            # neginf_indices = self._altered_indices[
+            #     num_rel_errors + num_nan:num_rel_errors + num_nan + num_neginf
+            # ]
+            # posinf_indices = self._altered_indices[
+            #     num_rel_errors + num_nan + num_neginf:num_rel_errors + num_nan + num_neginf + num_posinf
+            # ]
 
             if not hasattr(self, "_relative_errors") or self._relative_errors is None:
                 nb_bins = fault_model.columns.str.startswith("bin_").sum()
                 if not hasattr(self, "_bins") or self._bins is None:
                     self._bins = torch.tensor(
-                        [fault_model[f"bin_{i}"].item() for i in range(nb_bins)]
+                        ([fault_model[f"bin_{i}"].item() for i in range(nb_bins)])
                     )
                     counts = torch.tensor(
-                        [fault_model[f"hist_{i}"].item() for i in range(nb_bins)],
+                        ([fault_model[f"hist_{i}"].item() for i in range(nb_bins)]),
                         dtype=torch.float,
                     )
-                    probs = counts / counts.sum()
-                    self._probs = probs
+                    self._probs = counts / counts.sum()
 
                 self._relative_errors = self._bins[
-                    torch.multinomial(self._probs, num_rel_errors, replacement=True)
+                    torch.multinomial(self._probs, sum_num_err, replacement=True)
                 ]
 
-            rel_err = self._relative_errors
+            err_indices = self._altered_indices
 
+            rel_err = self._relative_errors
             if faulty_output.shape[0] == self.last_batch_size:
-                rel_err_indices = self._split1_indices
+                err_indices = self._split1_indices
                 rel_err = self._relative_errors[self._last_batch_msk]
 
-        faulty_output = faulty_output.flatten()
-        faulty_output[rel_err_indices] *= 1 + rel_err
-        faulty_output = faulty_output.view(module_output.shape)
+            faulty_output = faulty_output.flatten()
+
+            finite_mask = torch.isfinite(rel_err)
+            valid_idx = err_indices[finite_mask]
+            valid_rel = rel_err[finite_mask]
+
+            faulty_output[valid_idx] *= 1 + valid_rel
+
+            # nan_mask = torch.isnan(rel_err)
+            # if nan_mask.any():
+            #     faulty_output[err_indices[nan_mask]] = np.nan
+
+            # posinf_mask = (rel_err == np.PINF)
+            # if posinf_mask.any():
+            #     faulty_output[err_indices[posinf_mask]] = np.PINF
+
+            # neginf_mask = (rel_err == np.NINF)
+            # if neginf_mask.any():
+            #     faulty_output[err_indices[neginf_mask]] = np.NINF
+
+            # print(f"{ len(err_indices[nan_mask]) = } -- { len(err_indices[posinf_mask]) = } -- { len(err_indices[neginf_mask]) = }")
+
+        # print(f"Injected {num_rel_errors} relative errors, "
+        #       f"{num_nan} NaNs, {num_neginf} -inf, and {num_posinf} +inf into the output.")
+        
+        # print(f"{ rel_err_indices =  }"
+        #       f"{ nan_indices =  }"
+        #       f"{ neginf_indices =  }"
+        #       f"{ posinf_indices =  }")
+        
 
         # Move the output back to the original device
-        faulty_output = faulty_output.to(module_output.device)
+        faulty_output = faulty_output.view(module_output.shape).to(module_output.device)
 
         return faulty_output
+
 
 
 class GetLayerSize:
@@ -337,6 +365,12 @@ def select_layer(target: LayerChoice) -> torch.nn.Module:
         return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 2][MODULE]
     elif target == LayerChoice.LAST:
         return _HOOKABLE_LAYERS[-1][MODULE]
+    elif target == LayerChoice.FIRST_HALF:
+        return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 4][MODULE]
+    elif target == LayerChoice.MIDDLE_HALF:
+        return _HOOKABLE_LAYERS[len(_HOOKABLE_LAYERS) // 2 + len(_HOOKABLE_LAYERS) // 4][MODULE]
+    elif target == LayerChoice.BEFORE_LAST:
+        return _HOOKABLE_LAYERS[-2][MODULE]
     else:
         return ValueError("Invalid layer choice.")
 

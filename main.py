@@ -37,6 +37,9 @@ def run_injections(
     model_for_fault.eval()
     model_for_fault.to(device)
 
+    if model_for_fault is None:
+        raise ValueError("Model for fault injection is not defined.")
+
     for i, (images, labels) in enumerate(data_loader):
         if precision == configs.FP16:
             images = images.half()
@@ -61,6 +64,9 @@ def run_injections(
             out_with_fault.squeeze(),
             out_prob_w_fault.squeeze(),
         )
+        # return
+
+        # print(out_prob_w_fault, out_with_fault)
 
         logger.debug("-" * 80)
         logger.debug(f"Batch {i} - Microop: {microop}")
@@ -85,7 +91,7 @@ def run_injections(
 
         TIME_MEASURE.append(time.time() - start)
 
-        # if i == 1:
+        # if i == 9:
         #     logger.info(f"Stopping after {i+1} batches.")
         #     break
 
@@ -157,6 +163,7 @@ def main() -> None:
     target_layer = args.target_layer
     verbose = args.verbose
     injection_type = args.injection_type
+    specific_seed = args.specific_seed
 
     logger = logger_formatter.logging_setup(__name__, None, False, verbose)
 
@@ -188,7 +195,7 @@ def main() -> None:
     ####
 
     test_set, data_loader = model_utils.get_dataset(
-        dataset_name, transforms, batch_size
+        dataset_name, transforms, batch_size, shuffle=shuffle_dataset
     )
     if inject_on_corr_preds:
         _, subset = model_utils.get_correct_indices(
@@ -214,13 +221,28 @@ def main() -> None:
             subset, batch_size=batch_size, shuffle=shuffle_dataset
         )
         logger.info("Injecting faults on correct predictions only.")
+    if specific_seed is not None:
+        sampler_generator = torch.Generator(device=configs.CPU)
+        sampler_generator.manual_seed(specific_seed)
+
+        subset = torch.utils.data.RandomSampler(data_source=test_set, replacement=False, num_samples=batch_size,
+                                                generator=sampler_generator)
+        data_loader = torch.utils.data.DataLoader(dataset=test_set, sampler=subset, batch_size=batch_size,
+                                                shuffle=False, pin_memory=True)
 
     dummy_input, _ = next(iter(data_loader))
+
     fault_model = statistical_fi.get_fault_model(
         configs.FAULT_MODEL_FILE, model_name, microop, precision, fault_model_threshold
     )
+    # print("before converting to list")
+    # data_loader = list(data_loader) 
+    # data_loader = [data_loader[0], data_loader[-1]]
+    # print(f"Data loader length: {len(data_loader)}")
+    # exit(0)
     if fault_model.empty:
         raise ValueError("Fault model not found.")
+    
     hook, handler = statistical_fi.hook_microop(
         model_for_fault,
         model_name,
@@ -232,6 +254,7 @@ def main() -> None:
         target_layer,
         injection_type,
     )
+
     if args.load_critical:
         hook.set_critical_batches(batch_indices)
         hook.set_save_critical_logits(save_critical_logits)
@@ -248,6 +271,7 @@ def main() -> None:
         seed,
         target_layer,
         injection_type,
+        specific_seed,
     )
     result_df = result_data_utils.init_result_data(
         configs.RESULTS_DIR, result_file, configs.RESULT_COLUMS
@@ -281,28 +305,30 @@ def main() -> None:
             logger,
         )
 
+    # torch.save(hook.get_relative_errors(), f"data/rel_err_outputs2/{model_name}-{str(target_layer)}-{seed}-rel_err.pt")
+
     handler.remove()
 
-    if TIME_MEASURE is not None:
-        average = mean(TIME_MEASURE)
-        data = {
-            "model": model_name,
-            "microop": microop,
-            "target_layer": str(target_layer),
-            "ETA": average * len(data_loader),
-        }
-        logger.info(f"ETA for full pass: {average*len(data_loader):.2f}s")
+    # if TIME_MEASURE is not None:
+    #     average = mean(TIME_MEASURE)
+    #     data = {
+    #         "model": model_name,
+    #         "microop": microop,
+    #         "target_layer": str(target_layer),
+    #         "ETA": average * len(data_loader),
+    #     }
+    #     logger.info(f"ETA for full pass: {average*len(data_loader):.2f}s")
 
-        eta_path = "data/eta_swfi_rel_err_large_val.csv"
+    #     eta_path = "data/eta_swfi_rel_err_large_val.csv"
 
-        if os.path.exists(eta_path):
-            df = pd.read_csv(eta_path)
-            data = pd.DataFrame([data])
-            df = pd.concat([df, data])
-            df.to_csv(eta_path, index=False)
-        else:
-            df = pd.DataFrame([data])
-            df.to_csv(eta_path, index=False)
+    #     if os.path.exists(eta_path):
+    #         df = pd.read_csv(eta_path)
+    #         data = pd.DataFrame([data])
+    #         df = pd.concat([df, data])
+    #         df.to_csv(eta_path, index=False)
+    #     else:
+    #         df = pd.DataFrame([data])
+    #         df.to_csv(eta_path, index=False)
 
 
 if __name__ == "__main__":

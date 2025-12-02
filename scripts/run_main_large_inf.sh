@@ -4,7 +4,7 @@ script="main.py"
 
 # Run the tests
 models=(
-#    "vit_base_patch16_224"
+    # "vit_base_patch16_224"
     "swin_base_patch4_window7_224"
 )
 
@@ -40,12 +40,12 @@ dataset="imagenet"
 batchsize=32
 # seed=0
 seeds=(
-    0
+    # 0
     # 493
     # 666
     # 31417
-    # 182036
-    29052001
+    182036
+    # 29052001
     # 35014520
     # 4294967295
     # 2796017452
@@ -143,9 +143,11 @@ seeds=(
 )
 
 targets=(
-    # "FIRST"
+#    "FIRST"
     "LAST"
-    # "MIDDLE"
+    "MIDDLE"
+    # "MIDDLE_HALF"
+    # "BEFORE_LAST"
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
