@@ -6,8 +6,8 @@ script="main.py"
 models=(
     "vit_base_patch16_224"
     "swin_base_patch4_window7_224"
-    "gpt2"
-    "facebook/bart-large-mnli"
+    # "gpt2"
+    # "facebook/bart-large-mnli"
 )
 
 precision=(
@@ -22,14 +22,14 @@ float_thresholds=(
 
 swin_microops=(
     "SwinTransformerBlock"
-    "Mlp"
-    "WindowAttention"
+    # "Mlp"
+    # "WindowAttention"
 )
 
 vit_microops=(
     "Block"
-    "Attention"
-    "Mlp"
+    # "Attention"
+    # "Mlp"
 )
 
 gpt2_microops=(
@@ -49,8 +49,8 @@ injection_types=(
     # "RANDOM"
     "FIXED"
     # "SINGLE"
-    "ROW"
-    "COL"
+    # "ROW"
+    # "COL"
     # "SINGLE_RANDOM"
 )
 
@@ -75,57 +75,57 @@ batchsize=32
 # seed=0
 seeds=(
     0
-    # 493
-    # 666
-    # 31417
-    # 182036
-    # 29052001
-    # 35014520
-    # 4294967295
-    # 2796017452
-    # 1084398730
+    493
+    666
+    31417
+    182036
+    29052001
+    35014520
+    4294967295
+    2796017452
+    1084398730
     #---
-    # 3208799631
-    # 2357136044
-    # 2546248239
-    # 3071714933
-    # 3626093760
-    # 2588848963
-    # 3684848379
-    # 2340255427
-    # 3638918503
-    # 1819583497
-    # 2678185683
-    # 2774094101
-    # 1650906866
-    # 1879422756
-    # 1277901399
+    3208799631
+    2357136044
+    2546248239
+    3071714933
+    3626093760
+    2588848963
+    3684848379
+    2340255427
+    3638918503
+    1819583497
+    2678185683
+    2774094101
+    1650906866
+    1879422756
+    1277901399
     #---
-    # 3830135878
-    # 243580376
-    # 4138900056
-    # 1171049868
-    # 1646868794
-    # 2051556033
-    # 3400433126
-    # 3488238119
-    # 2271586391
-    # 2061486254
-    # 2439732824
-    # 1686997841
-    # 3975407269
-    # 3590930969
-    # 305097549
-    # 1449105480
-    # 374217481
-    # 2783877012
-    # 86837363
-    # 1581585360
-    # 3576074995
-    # 4110950085
-    # 3342157822
-    # 602801999
-    # 3736673711
+    3830135878
+    243580376
+    4138900056
+    1171049868
+    1646868794
+    2051556033
+    3400433126
+    3488238119
+    2271586391
+    2061486254
+    2439732824
+    1686997841
+    3975407269
+    3590930969
+    305097549
+    1449105480
+    374217481
+    2783877012
+    86837363
+    1581585360
+    3576074995
+    4110950085
+    3342157822
+    602801999
+    3736673711
     # half of seeds
     # 3736996288
     # 4203133778
@@ -186,8 +186,8 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
     # "MIDDLE_HALF"
     # "BEFORE_LAST"
     "0" # first layer
-    "5" # middle layer
-    "11" # last layer
+    # "5" # middle layer
+    # "11" # last layer
 )
 
 # bart_attentions=34
@@ -200,16 +200,17 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
 # gpt2_total_layers=12
 
 range_restriction_modes=(
-    # "NONE"
+    "NONE"
     # "CLAMP"
-    "TO_ZERO"
+    # "TO_ZERO"
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
 # options="--inject-on-correct-predictions --shuffle-dataset"
 # options="--inject-on-correct-predictions"
 # options="--nsamples 2048 --verbose --inject-on-correct-predictions"
-options="--nsamples 32 --verbose --inject-on-correct-predictions"
+# options="--nsamples 4200 --verbose --inject-on-correct-predictions --shuffle-dataset"
+options="--nsamples 1 --inject-on-correct-predictions --verbose"
 
 # creating folder for results
 current_time=$(date "+%Y-%m-%d-%H-%M-%S")
@@ -243,8 +244,8 @@ for model in "${models[@]}"; do
                                 for microop in "${swin_microops[@]}"; do
                                     targets=(
                                         "0" # first layer
-                                        "11" # middle layer
-                                        "23" # last layer
+                                        # "11" # middle layer
+                                        # "23" # last layer
                                     )
                                     for target in "${targets[@]}"; do
                                         time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options

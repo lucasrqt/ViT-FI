@@ -243,6 +243,63 @@ class MicroopHook:
             # ]
             # used_indices.update(posinf_indices.tolist())
             # faulty_output[posinf_indices] = float('inf')
+        # elif self.injection_type == InjectionType.FIXED:
+        #     faulty_output = faulty_output.to(module_output_device)
+
+        #     # ----------------------------------------
+        #     # Reshape to [B, N]
+        #     # ----------------------------------------
+        #     B = faulty_output.shape[0]
+        #     N = faulty_output[0].numel()
+        #     faulty_output = faulty_output.view(B, N)
+
+        #     K = int(altered_floats_ratio * N)
+        #     if K == 0:
+        #         return faulty_output.view(module_output_shape)
+
+        #     # ----------------------------------------
+        #     # Sample indices ONCE (shared across batch)
+        #     # ----------------------------------------
+        #     if not hasattr(self, "_shared_err_indices") or self._shared_err_indices is None:
+        #         self._shared_err_indices = torch.randperm(
+        #             N, device=faulty_output.device
+        #         )[:K]
+
+        #     err_indices = self._shared_err_indices  # shape (K,)
+
+        #     # ----------------------------------------
+        #     # Prepare relative error distribution ONCE
+        #     # ----------------------------------------
+        #     if not hasattr(self, "_bins") or self._bins is None:
+        #         nb_bins = fault_model.columns.str.startswith("bin_").sum()
+        #         self._bins = torch.tensor(
+        #             [fault_model[f"bin_{i}"].item() for i in range(nb_bins)],
+        #             device=faulty_output.device,
+        #         )
+        #         counts = torch.tensor(
+        #             [fault_model[f"hist_{i}"].item() for i in range(nb_bins)],
+        #             dtype=torch.float,
+        #             device=faulty_output.device,
+        #         )
+        #         self._probs = counts / counts.sum()
+
+        #     # ----------------------------------------
+        #     # Sample relative errors ONCE (shared)
+        #     # ----------------------------------------
+        #     if not hasattr(self, "_shared_relative_errors") or self._shared_relative_errors is None:
+        #         self._shared_relative_errors = self._bins[
+        #             torch.multinomial(self._probs, K, replacement=True)
+        #         ]
+
+        #     rel_err = self._shared_relative_errors  # shape (K,)
+        #     torch.save(rel_err, f"relerr-{self.model_name}-{self.microop}-seed_{self.seed}.pt")
+        #     exit(0)
+
+        #     # ----------------------------------------
+        #     # Apply faults to ALL images (vectorized)
+        #     # ----------------------------------------
+        #     faulty_output[:, err_indices] *= (1 + rel_err.unsqueeze(0))
+
 
         elif self.injection_type == InjectionType.FIXED:
             num_rel_errors = int(altered_floats_ratio * num_elements)
@@ -317,9 +374,9 @@ class MicroopHook:
             if faulty_output.shape[0] == self.last_batch_size:
                 err_indices = self._split1_indices
                 rel_err = self._relative_errors[self._last_batch_msk]
-                nan_indices = nan_indices[self._last_batch_msk]
-                neginf_indices = neginf_indices[self._last_batch_msk]
-                posinf_indices = posinf_indices[self._last_batch_msk]
+                # nan_indices = nan_indices[self._last_batch_msk]
+                # neginf_indices = neginf_indices[self._last_batch_msk]
+                # posinf_indices = posinf_indices[self._last_batch_msk]
 
             faulty_output = faulty_output.flatten()
 

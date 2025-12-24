@@ -4,9 +4,9 @@ script="main.py"
 
 # Run the tests
 models=(
-    # "vit_base_patch16_224"
-    # "swin_base_patch4_window7_224"
-    "gpt2"
+    "vit_base_patch16_224"
+    "swin_base_patch4_window7_224"
+    # "gpt2"
     # "facebook/bart-large-mnli"
 )
 
@@ -21,15 +21,15 @@ float_thresholds=(
 )
 
 swin_microops=(
-    # "SwinTransformerBlock"
-    "Mlp"
+    "SwinTransformerBlock"
+    # "Mlp"
     # "WindowAttention"
 )
 
 vit_microops=(
     "Block"
-    "Attention"
-    "Mlp"
+    # "Attention"
+    # "Mlp"
 )
 
 gpt2_microops=(
@@ -41,18 +41,17 @@ gpt2_microops=(
 bart_microops=(
     "BartEncoderLayer"
     "BartDecoderLayer"
-    # "BartSdpaAttention"
-    # "BartMlp"
+    "BartSdpaAttention"
+    "BartMlp"
 )
 
 injection_types=(
     # "RANDOM"
-    # "FIXED"
+    "FIXED"
     # "SINGLE"
-    # "COL"
     # "ROW"
+    # "COL"
     # "SINGLE_RANDOM"
-    "MULTIPLE_RANDOM"
 )
 
 bitflip_positions=(
@@ -75,16 +74,16 @@ device="cuda:0"
 batchsize=32
 # seed=0
 seeds=(
-    0
-    493
-    666
-    31417
-    182036
-    29052001
-    35014520
-    4294967295
-    2796017452
-    1084398730
+    # 0
+    # 493
+    # 666
+    # 31417
+    # 182036
+    # 29052001
+    # 35014520
+    # 4294967295
+    # 2796017452
+    # 1084398730
     #---
     # 3208799631
     # 2357136044
@@ -105,15 +104,15 @@ seeds=(
     # 3830135878
     # 243580376
     # 4138900056
-    # 1171049868
-    # 1646868794
-    # 2051556033
-    # 3400433126
-    # 3488238119
-    # 2271586391
-    # 2061486254
-    # 2439732824
-    # 1686997841
+    1171049868
+    1646868794
+    2051556033
+    3400433126
+    3488238119
+    2271586391
+    2061486254
+    2439732824
+    1686997841
     # 3975407269
     # 3590930969
     # 305097549
@@ -208,9 +207,10 @@ range_restriction_modes=(
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
 # options="--inject-on-correct-predictions --shuffle-dataset"
-options="--verbose --inject-on-correct-predictions"
+options="--inject-on-correct-predictions"
 # options="--nsamples 2048 --verbose --inject-on-correct-predictions"
-# options="--nsamples 32 --verbose --inject-on-correct-predictions"
+# options="--nsamples 4200 --verbose --inject-on-correct-predictions --shuffle-dataset"
+# options="--nsamples 1 --inject-on-correct-predictions --verbose"
 
 # creating folder for results
 current_time=$(date "+%Y-%m-%d-%H-%M-%S")
@@ -221,16 +221,15 @@ mkdir -p data/"$current_time"_campaign
 ## if seed_specific is not None:
 ##     base_name += f"-seedspecif_{seed_specific}"
 ## return f"{base_name}.csv"
-
-for model in "${models[@]}"; do
-    if [[ $model == "gpt2" || $model == "facebook/bart-large-mnli" ]]; then
-        dataset="glue_mnli"
-    else
-        dataset="imagenet"
-    fi
-    for prec in "${precision[@]}"; do
-        for threshold in "${float_thresholds[@]}"; do
-            for seed in "${seeds[@]}"; do
+for seed in "${seeds[@]}"; do
+    for model in "${models[@]}"; do
+        if [[ $model == "gpt2" || $model == "facebook/bart-large-mnli" ]]; then
+            dataset="glue_mnli"
+        else
+            dataset="imagenet"
+        fi
+        for prec in "${precision[@]}"; do
+            for threshold in "${float_thresholds[@]}"; do
                 for it in "${injection_types[@]}"; do
                     for rrm in "${range_restriction_modes[@]}"; do
                         options+=" --range-restriction-mode $rrm"
@@ -253,38 +252,38 @@ for model in "${models[@]}"; do
                                         mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                     done
                                 done
-                            elif [[ $model == "gpt2" ]]; then
-                                for microop in "${gpt2_microops[@]}"; do
-                                    for target in "${default_targets[@]}"; do
-                                        time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
-                                        # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                        mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
-                                    done
-                                done
-                            elif [[ $model == "facebook/bart-large-mnli" ]]; then
-                                for microop in "${bart_microops[@]}"; do
-                                    if [[ $microop == "BartEncoderLayer" || $microop == "BartDecoderLayer" ]]; then
-                                        targets=$default_targets
-                                    elif [[ $microop == "BartSdpaAttention" ]]; then
-                                        targets=(
-                                            "0" # first layer
-                                            "17" # middle layer
-                                            "33" # last layer
-                                        )
-                                    elif [[ $microop == "BartMlp" ]]; then
-                                        targets=(
-                                            "0" # first layer
-                                            "11" # middle layer
-                                            "23" # last layer
-                                        )
-                                    fi
-                                    for target in "${targets[@]}"; do
-                                        time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
-                                        # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                                        model_name=${model//\//_}
-                                        mv data/"$model_name"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
-                                    done
-                                done
+                            # elif [[ $model == "gpt2" ]]; then
+                            #     for microop in "${gpt2_microops[@]}"; do
+                            #         for target in "${default_targets[@]}"; do
+                            #             time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
+                            #             # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
+                            #             mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
+                            #         done
+                            #     done
+                            # elif [[ $model == "facebook/bart-large-mnli" ]]; then
+                            #     for microop in "${bart_microops[@]}"; do
+                            #         if [[ $microop == "BartEncoderLayer" || $microop == "BartDecoderLayer" ]]; then
+                            #             targets=$default_targets
+                            #         elif [[ $microop == "BartSdpaAttention" ]]; then
+                            #             targets=(
+                            #                 "0" # first layer
+                            #                 "17" # middle layer
+                            #                 "33" # last layer
+                            #             )
+                            #         elif [[ $microop == "BartMlp" ]]; then
+                            #             targets=(
+                            #                 "0" # first layer
+                            #                 "11" # middle layer
+                            #                 "23" # last layer
+                            #             )
+                            #         fi
+                            #         for target in "${targets[@]}"; do
+                            #             time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
+                            #             # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
+                            #             model_name=${model//\//_}
+                            #             mv data/"$model_name"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
+                            #         done
+                            #     done
                             else
                                 for microop in "${vit_microops[@]}"; do
                                     for target in "${default_targets[@]}"; do

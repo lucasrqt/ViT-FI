@@ -12,12 +12,9 @@ from statistics import mean
 import os
 import cli.logger_formatter as logger_formatter
 from cli.parsers import MainParser
-from filelock import FileLock
 
 from transformers import GPT2Tokenizer, GPT2ForSequenceClassification, AutoModelForSequenceClassification, AutoTokenizer
 from datasets import load_dataset
-
-TIME_MEASURE = []
 
 
 def run_injections(
@@ -49,7 +46,6 @@ def run_injections(
             images = images.half()
             labels = labels.half()
 
-        start = time.time()
         images = images.to(device)
         labels = labels.to(device)
 
@@ -95,8 +91,6 @@ def run_injections(
                 pd.DataFrame(result_df), configs.RESULTS_DIR, result_file
             )
 
-        TIME_MEASURE.append(time.time() - start)
-
         # if i == 9:
         #     logger.info(f"Stopping after {i+1} batches.")
         #     break
@@ -117,7 +111,6 @@ def run_injections_gpt2(
     result_file,
     logger,
 ) -> None:
-    global TIME_MEASURE
     model.eval()
     model.to(device)
 
@@ -128,7 +121,6 @@ def run_injections_gpt2(
         raise ValueError("Model for fault injection is not defined.")
 
     for i, batch in enumerate(data_loader):
-        start = time.time()
         inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
         labels = batch["labels"].cpu().numpy()
 
@@ -172,8 +164,6 @@ def run_injections_gpt2(
             result_data_utils.save_result_data(
                 pd.DataFrame(result_df), configs.RESULTS_DIR, result_file
             )
-
-        TIME_MEASURE.append(time.time() - start)
         # if i == 9:
         #     logger.info(f"Stopping after {i+1} batches.")
         #     break
@@ -224,8 +214,6 @@ def get_faulty_top5(
 
 
 def main() -> None:
-    global TIME_MEASURE
-
     parser = MainParser()
     args = parser.parse_args()
 
@@ -493,24 +481,24 @@ def main() -> None:
             logger.info(f"{len(subset)} correct predictions found.")
             logger.info("Injecting faults on correct predictions only.")
 
-    # if nsamples > 0:
-    #     subset_indices = list(range(nsamples))
-    #     if model_name in configs.VIT_CLASSIFICATION_CONFIGS:
-    #         subset = torch.utils.data.Subset(test_set, subset_indices)
-    #     # elif model_name in configs.TEXT_MODELS:
-    #     #     if task == "mnli":
-    #     #         subset_split = "validation_matched"
-    #     #     else:
-    #     #         subset_split = "validation"
+    if nsamples > 0:
+        subset_indices = list(range(nsamples))
+        if model_name in configs.VIT_CLASSIFICATION_CONFIGS:
+            subset = torch.utils.data.Subset(test_set, subset_indices)
+        # elif model_name in configs.TEXT_MODELS:
+        #     if task == "mnli":
+        #         subset_split = "validation_matched"
+        #     else:
+        #         subset_split = "validation"
 
-    #     #     subset = encoded_dataset[subset_split].select(subset_indices)
+        #     subset = encoded_dataset[subset_split].select(subset_indices)
         
-    #         data_loader = torch.utils.data.DataLoader(
-    #             subset,
-    #             batch_size=batch_size,
-    #             shuffle=shuffle_dataset,
-    #         )
-    #         logger.info(f"Using only {nsamples} samples for injection.")
+            data_loader = torch.utils.data.DataLoader(
+                subset,
+                batch_size=batch_size,
+                shuffle=shuffle_dataset,
+            )
+            logger.info(f"Using only {nsamples} samples for injection.")
 
     dummy_input = None
     if model_name in configs.VIT_CLASSIFICATION_CONFIGS:
@@ -641,32 +629,6 @@ def main() -> None:
     handler.remove()
     for rr_handler in range_restrict_handlers:
         rr_handler.remove()
-
-    if TIME_MEASURE is not None:
-        average = mean(TIME_MEASURE)
-        data = {
-            "model": model_name,
-            "microop": microop,
-            "target_layer": str(target_layer),
-            "seed": seed,
-            "batch_size": batch_size,
-            "avg_time_per_batch": average,
-            "injection_type": str(injection_type),
-            "ETA": average * len(data_loader),
-        }
-        logger.info(f"ETA for full pass: {average*len(data_loader):.2f}s")
-
-        eta_path = "data/eta_swfi_LATS.csv"
-        lock_path = eta_path + ".lock"
-        with FileLock(lock_path):
-            if os.path.exists(eta_path):
-                df = pd.read_csv(eta_path)
-                data = pd.DataFrame([data])
-                df = pd.concat([df, data])
-                df.to_csv(eta_path, index=False)
-            else:
-                df = pd.DataFrame([data])
-                df.to_csv(eta_path, index=False)
 
 
 if __name__ == "__main__":
