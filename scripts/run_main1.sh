@@ -4,9 +4,9 @@ script="main.py"
 
 # Run the tests
 models=(
-    "vit_base_patch16_224"
-    "swin_base_patch4_window7_224"
-    # "gpt2"
+    # "vit_base_patch16_224"
+    # "swin_base_patch4_window7_224"
+    "gpt2"
     # "facebook/bart-large-mnli"
 )
 
@@ -34,8 +34,8 @@ vit_microops=(
 
 gpt2_microops=(
     "GPT2Block"
-    "GPT2Attention"
-    "GPT2MLP"
+    # "GPT2Attention"
+    # "GPT2MLP"
 )
 
 bart_microops=(
@@ -200,9 +200,9 @@ default_targets=( # for vit_base_patch16_224 and gpt2 (12 blocks)
 # gpt2_total_layers=12
 
 range_restriction_modes=(
-    # "NONE"
-    # "CLAMP"
-    "TO_ZERO"
+    "NONE"
+    "CLAMP"
+    # "TO_ZERO"
 )
 
 # options="--inject-on-correct-predictions --load-critical --save-critical-logits"
