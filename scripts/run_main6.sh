@@ -252,14 +252,14 @@ for seed in "${seeds[@]}"; do
                                         mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
                                     done
                                 done
-                            # elif [[ $model == "gpt2" ]]; then
-                            #     for microop in "${gpt2_microops[@]}"; do
-                            #         for target in "${default_targets[@]}"; do
-                            #             time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
-                            #             # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
-                            #             mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
-                            #         done
-                            #     done
+                            elif [[ $model == "gpt2" ]]; then
+                                for microop in "${gpt2_microops[@]}"; do
+                                    for target in "${default_targets[@]}"; do
+                                        time python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop --injection-type $it $options
+                                        # echo "python3 $script --model $model --precision $prec --fault-model-threshold $threshold --device $device --dataset $dataset --batch-size $batchsize --seed $seed --target-layer $target --microop $microop $options"
+                                        mv data/"$model"-"$dataset"-"$prec"-"$microop"-*-"$seed"-layer_"$target"-it_"$it_for_filename"-rrmode_"$rrm".csv data/"$current_time"_campaign/
+                                    done
+                                done
                             # elif [[ $model == "facebook/bart-large-mnli" ]]; then
                             #     for microop in "${bart_microops[@]}"; do
                             #         if [[ $microop == "BartEncoderLayer" || $microop == "BartDecoderLayer" ]]; then
